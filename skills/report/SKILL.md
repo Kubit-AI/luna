@@ -1,14 +1,13 @@
 ---
-name: kubit-report
-description: Use this skill to find, open, create, or modify Kubit reports for LLM ops analysis. Use for: report, grid, query, funnel, flow, retention, find report, search report, open report, create report, build report, modify report, edit report, add filter, change date range, traces, sessions, token cost, intent, model latency, prompt errors. Use this skill whenever the user mentions any Kubit report type, asks about analytics data, or wants to visualize LLM performance — even if they don't explicitly say "report." Do NOT use this skill for inspecting raw records by id or filter — use /kubit-inspect instead.
-user_invocable: true
+name: report
+description: Use this skill to find, open, create, or modify Kubit reports for LLM ops analysis. Use for: report, grid, query, funnel, flow, retention, find report, search report, open report, create report, build report, modify report, edit report, add filter, change date range, traces, sessions, token cost, intent, model latency, prompt errors. Use this skill whenever the user mentions any Kubit report type, asks about analytics data, or wants to visualize LLM performance — even if they don't explicitly say "report." Do NOT use this skill for inspecting raw records by id or filter — use /kubit:inspect instead.
 ---
 
-# kubit-report
+# /kubit:report
 
 ## Overview
 
-This skill finds existing Kubit reports, creates new ones, or modifies existing ones for LLM ops analysis — traces, sessions, intents, token cost, model performance, and user behavior. Supported report types: Grid, Query, Funnel, Flow, and Retention. The active workspace and organization are managed by `/kubit-init`. For inspecting raw records inside a report, use `/kubit-inspect`.
+This skill finds existing Kubit reports, creates new ones, or modifies existing ones for LLM ops analysis — traces, sessions, intents, token cost, model performance, and user behavior. Supported report types: Grid, Query, Funnel, Flow, and Retention. The active workspace and organization are managed by `/kubit:init`. For inspecting raw records inside a report, use `/kubit:inspect`.
 
 ## When to Use
 
@@ -26,7 +25,7 @@ Report type (`grid`, `query`, `funnel`, `flow`, `retention`) is inferred by the 
 
 ## Workflow
 
-1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit-init — workspace and organization selection is owned by that skill.
+1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit:init — workspace and organization selection is owned by that skill.
 2. **Pass the query through.** Send the user's wording directly to `kubit_report`. Do not pre-parse, resolve, or reshape parameters — the MCP handles report id lookup, search matching, type inference, creation, and modification.
 3. **Always search first when intent is ambiguous.** If the user's wording could mean either "find an existing report" or "create a new one," always search first. Only create when:
    - The user uses a clear creation intent (e.g. "create", "build", "make", "new", "set up", "I need a new...", "give me a..."), OR
@@ -37,7 +36,7 @@ Report type (`grid`, `query`, `funnel`, `flow`, `retention`) is inferred by the 
    - **Multiple search matches:** Return up to `limit` results as a compact list with id, name, and type. Show the total match count. Ask the user to pick one.
    - **Zero matches:** Say so and ask whether to broaden the search or create a new report from the description.
    - If the MCP returns suggestions or clarification questions, relay them verbatim.
-5. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
+5. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit:inspect` as a drill-down. Do not suggest `/kubit:inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
 
 Example output format:
 
@@ -51,38 +50,38 @@ Example output format:
 
 ## Error Handling
 
-- User wants to switch org/workspace → "Run /kubit-init to switch."
+- User wants to switch org/workspace → "Run /kubit:init to switch."
 - No matching report found → "No report matched. Want me to broaden the search, or create a new report from your description?"
 - Ambiguous match among results → Relay the MCP's clarification question verbatim, or show the top matches and let the user pick.
 - Bulk creation request (multiple reports in one turn) → Confirm with the user before proceeding, as report creation may be expensive.
-- MCP failure → "Could not connect to agent.kubit.ai/mcp. Check your network."
+- MCP failure → "Could not connect to the kubit MCP server. Check your network."
 
 ## Examples
 
 **Find by id:**
-Input: /kubit-report 10798
+Input: /kubit:report 10798
 MCP: `{ "query": "10798" }`
 
 **Search by name (ambiguous — search first):**
-Input: /kubit-report daily failed traces
+Input: /kubit:report daily failed traces
 MCP: `{ "query": "daily failed traces", "limit": 5 }`
 Behavior: Search first. If a match exists, return it. If not, ask the user whether to create a new report.
 
 **Search returns zero matches:**
-Input: /kubit-report latency by provider
+Input: /kubit:report latency by provider
 MCP: `{ "query": "latency by provider", "limit": 5 }`
 Behavior: No results. Respond: "No report matched 'latency by provider.' Want me to create a new one, or try a broader search?"
 
 **Create a new funnel (explicit build verb):**
-Input: /kubit-report build a funnel for user query → intent classification → tool call → response
+Input: /kubit:report build a funnel for user query → intent classification → tool call → response
 MCP: `{ "query": "build a funnel for user query → intent classification → tool call → response" }`
 
 **Create with inferred type:**
-Input: /kubit-report create a weekly retention report for users whose first session had zero errors
+Input: /kubit:report create a weekly retention report for users whose first session had zero errors
 MCP: `{ "query": "create a weekly retention report for users whose first session had zero errors" }`
 
 **Modify an existing report:**
-Input: /kubit-report add a filter for model=gpt-4 to report 10798
+Input: /kubit:report add a filter for model=gpt-4 to report 10798
 MCP: `{ "query": "add a filter for model=gpt-4 to report 10798" }`
 
 ## Gotchas

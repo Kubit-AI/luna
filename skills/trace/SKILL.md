@@ -1,10 +1,9 @@
 ---
-name: kubit-trace
+name: trace
 description: Look up Kubit analytics traces by name or ID. Orchestrates kubit_init and kubit_trace MCP tool calls.
-user_invocable: true
 ---
 
-# /kubit-trace
+# /kubit:trace
 
 Look up a Kubit trace using the MCP tools `kubit_init` and `kubit_trace`.
 

@@ -1,0 +1,13 @@
+{
+  "name": "kubit",
+  "version": "0.1.0",
+  "description": "Kubit LLM-ops skills: inspect traces, build reports, manage datasets, and trace failures back to prompts.",
+  "author": {
+    "name": "Kubit Inc",
+    "url": "https://www.kubit.ai"
+  },
+  "homepage": "https://www.kubit.ai",
+  "repository": "https://bitbucket.org/kubitai/luna",
+  "license": "LicenseRef-Proprietary",
+  "keywords": ["kubit", "llm-ops", "observability", "analytics"]
+}

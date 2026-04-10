@@ -1,9 +1,9 @@
 ---
-name: kubit-init
+name: init
 description: Use this skill to establish a session with Kubit and manage current org and workspace.
 ---
 
-# kubit-init
+# /kubit:init
 
 ## Overview
 
@@ -13,7 +13,7 @@ established connection to the Kubit Agent MCP server.
 ## When to Use
 
 This skill should be invoked when:
-- The user runs /kubit-init for the first time
+- The user runs /kubit:init for the first time
 - The user wants to switch organization or workspace
 - Another Kubit skill fails due to missing org id or workspace
 
@@ -30,12 +30,12 @@ This skill should be invoked when:
 ## Examples
 
 **Example 1 — First time access:**
-Input: /kubit-init
+Input: /kubit:init
 
 Call the `kubit-init` MCP tool, you will get information about the current user, organization and workspace.
 
 **Example 2 — Switch org / workspace:**
-Input: /kubit-init switch workspace <workspace id>
+Input: /kubit:init switch workspace <workspace id>
 
 Call the `kubit-switch` MCP call with the appropriate org and workspace IDs. The user may specify these with numeric id
 or names.

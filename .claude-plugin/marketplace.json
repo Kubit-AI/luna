@@ -1,0 +1,16 @@
+{
+  "name": "kubit-plugins",
+  "owner": {
+    "name": "Kubit Inc"
+  },
+  "metadata": {
+    "description": "Kubit's official Claude Code plugin marketplace"
+  },
+  "plugins": [
+    {
+      "name": "kubit",
+      "source": "./",
+      "description": "Kubit LLM-ops skills: inspect traces, build reports, manage datasets, and trace failures back to prompts."
+    }
+  ]
+}
