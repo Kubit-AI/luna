@@ -32,11 +32,11 @@ This skill should be invoked when:
 **Example 1 — First time access:**
 Input: /kubit:init
 
-Call the `kubit-init` MCP tool, you will get information about the current user, organization and workspace.
+Call the `kubit_init` MCP tool, you will get information about the current user, organization and workspace.
 
 **Example 2 — Switch org / workspace:**
 Input: /kubit:init switch workspace <workspace id>
 
-Call the `kubit-switch` MCP call with the appropriate org and workspace IDs. The user may specify these with numeric id
+Call the `kubit_switch` MCP call with the appropriate org and workspace IDs. The user may specify these with numeric id
 or names.
 Note that orgId and workspaceId come in pairs - you need to pass both when switching org/workspace.
