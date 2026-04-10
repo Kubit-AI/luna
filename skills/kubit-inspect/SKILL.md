@@ -25,7 +25,7 @@ This skill retrieves raw data from Kubit — users, sessions, traces, and events
 
 ## Workflow
 
-1. **Confirm workspace context.** Call `kubit_init` and confirm the current org/workspace with the user. If the user wants to switch, redirect to `/kubit-init` — workspace and organization selection is owned by that skill.
+1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit-init — workspace and organization selection is owned by that skill.
 2. **Pass the query through.** Send the user's wording directly to `kubit_inspect` as `{ "query": "...", "limit": 5 }`. Do not pre-parse, resolve, or reshape parameters — the MCP handles entity type, filters, schema, and date range. If the user references a prior report or pastes a report URL, include that context in the query string. If the MCP asks which entity type to query (users, sessions, traces, events), present the options to the user rather than guessing.
 3. **Present raw results.** Return a structured list, one record per result, with the total match count. Do not interpret the data unless asked. After the list, you may add a 1–2 line contextual summary if it adds value (e.g., "All 5 results are from the same user" or "Results span the last 6 hours"). If the MCP returns suggestions or clarification questions, relay them verbatim. If 0 results, say so and suggest a broader query.
 4. **Offer next steps.** Ask if the user wants to refine, expand, or take action on the results. If the investigation suggests the user might benefit from a broader view (e.g., trends over time, funnel analysis), suggest `/kubit-report` as a follow-up.
