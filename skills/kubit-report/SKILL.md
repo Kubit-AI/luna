@@ -26,7 +26,7 @@ Report type (`grid`, `query`, `funnel`, `flow`, `retention`) is inferred by the 
 
 ## Workflow
 
-1. **Confirm workspace context.** Call `kubit_init` and confirm the current org/workspace with the user. If the user wants to switch, redirect to `/kubit-init` — workspace and organization selection is owned by that skill.
+1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit-init — workspace and organization selection is owned by that skill.
 2. **Pass the query through.** Send the user's wording directly to `kubit_report`. Do not pre-parse, resolve, or reshape parameters — the MCP handles report id lookup, search matching, type inference, creation, and modification.
 3. **Always search first when intent is ambiguous.** If the user's wording could mean either "find an existing report" or "create a new one," always search first. Only create when:
    - The user uses a clear creation intent (e.g. "create", "build", "make", "new", "set up", "I need a new...", "give me a..."), OR
