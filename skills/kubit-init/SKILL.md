@@ -7,7 +7,8 @@ description: Use this skill to establish a session with Kubit and manage current
 
 ## Overview
 
-This skill sets up the Kubit context for the current session.
+This skill sets up the Kubit context for the current session. This requires the user to have an
+established connection to the Kubit Agent MCP server.
 
 ## When to Use
 
