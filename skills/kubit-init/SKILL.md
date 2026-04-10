@@ -26,6 +26,7 @@ This skill should be invoked when:
 - Skip organization and workspace prompts if the user has only one of each
 - Do not proceed to other skills if authentication is incomplete
 
+## Examples
 
 **Example 1 — First time access:**
 Input: /kubit-init
