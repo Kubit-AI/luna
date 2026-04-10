@@ -1,6 +1,6 @@
 ---
 name: kubit-help
-description: Use this skill to list and explain available Kubit skills. Use for: help, what can you do, list skills, available commands, getting started, how do I, what is kubit.
+description: "Use this skill to list and explain available Kubit skills. Use for: help, what can you do, list skills, available commands, getting started, how do I, what is kubit."
 ---
 # kubit-help
 
