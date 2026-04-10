@@ -20,7 +20,7 @@ This repo is both the plugin and a self-hosted marketplace, so it can be install
 ## Install
 
 ```text
-/plugin marketplace add https://bitbucket.org/kubitai/luna.git
+/plugin marketplace add git@bitbucket.org:kubitai/luna.git
 /plugin install kubit@kubit-plugins
 ```
 
