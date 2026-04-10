@@ -18,7 +18,9 @@ Use when the user wants to look up analytics traces in Kubit — by trace name, 
 
 Always call the `kubit_init` MCP tool first. It returns the current organization and workspace, the full list of available orgs/workspaces, and the available trace names.
 
-Display the current organization and workspace to the user, along with the list of all available options. Ask the user to confirm the current selection or pick a different one **before continuing**. Do not proceed to the trace query until the user has confirmed.
+Display the current organization and workspace to the user, along with the list of all available options.
+
+Ask the user to confirm the current selection or pick a different one, unless the choice is obvious.
 
 ### Step 2: Switch org/workspace (if requested)
 

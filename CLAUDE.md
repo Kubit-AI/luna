@@ -4,9 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Claude Code skills repository. It currently contains a single template skill:
-
-- **kubit-init** — Template skill (TODO: fill in description once defined).
+This is a Claude Code skills repository.
 
 ## Architecture
 
