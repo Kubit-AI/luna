@@ -32,14 +32,14 @@ Report type (`grid`, `query`, `funnel`, `flow`, `retention`) is inferred by the 
    - The user uses a clear creation intent (e.g. "create", "build", "make", "new", "set up", "I need a new...", "give me a..."), OR
    - A search returns zero matches and the user confirms they want to create one.
 4. **Present the report or search results.**
-   - **Single match or created/modified report:** Return the report id, link URL, and raw data. Present the data in whatever shape the MCP returns — do not reformat across report types. You may add a 1–2 line contextual note after the raw data if it adds value.
+   - **Single match or created report:** Return the report id, link URL, and raw data. Present the data in whatever shape the MCP returns — do not reformat across report types. You may add a 1–2 line contextual note after the raw data if it adds value.
+   - **Modified report:** The MCP returns a new report id. Present the new id, link URL, and updated data. Note that the original report is unchanged and reference its id for context.
    - **Multiple search matches:** Return up to `limit` results as a compact list with id, name, and type. Show the total match count. Ask the user to pick one.
    - **Zero matches:** Say so and ask whether to broaden the search or create a new report from the description.
    - If the MCP returns suggestions or clarification questions, relay them verbatim.
-5. **Handle modifications.** When modifying a report, the MCP returns a new report id. Present the new report id, link URL, and updated data. Note that the original report is unchanged and reference its id for context.
-6. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
+5. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
 
-Example output format (single report):
+Example output format:
 
     Report: <n> (<type>)
     ID: <report_id>
@@ -49,31 +49,10 @@ Example output format (single report):
 
     <optional 1–2 line contextual note>
 
-Example output format (multiple search matches):
-
-    Found <total> reports matching your query. Showing top <n>:
-
-    [1] <report_id> — <n> (<type>)
-    [2] <report_id> — <n> (<type>)
-    ...
-
-    Which one would you like to open?
-
-Example output format (modified report):
-
-    Modified report. New version:
-    ID: <new_report_id>
-    URL: <new_report_url>
-
-    <updated raw data>
-
-    Original report <original_report_id> is unchanged.
-
 ## Error Handling
 
 - User wants to switch org/workspace → "Run /kubit-init to switch."
 - No matching report found → "No report matched. Want me to broaden the search, or create a new report from your description?"
-- Ambiguous find-vs-create → Search first; if nothing matches, ask before creating.
 - Ambiguous match among results → Relay the MCP's clarification question verbatim, or show the top matches and let the user pick.
 - Bulk creation request (multiple reports in one turn) → Confirm with the user before proceeding, as report creation may be expensive.
 - MCP failure → "Could not connect to agent.kubit.ai/mcp. Check your network."
@@ -105,10 +84,6 @@ MCP: `{ "query": "create a weekly retention report for users whose first session
 **Modify an existing report:**
 Input: /kubit-report add a filter for model=gpt-4 to report 10798
 MCP: `{ "query": "add a filter for model=gpt-4 to report 10798" }`
-
-**Change the date range on a report:**
-Input: /kubit-report change the date range on the token cost grid to the last 30 days
-MCP: `{ "query": "change the date range on the token cost grid to the last 30 days" }`
 
 ## Gotchas
 
