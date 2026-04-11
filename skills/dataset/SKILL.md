@@ -24,7 +24,7 @@ This skill manages golden datasets and test suites in Kubit. Golden datasets are
 
 ## Workflow
 
-1. 1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit:init — workspace and organization selection is owned by that skill.
+1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit:init — workspace and organization selection is owned by that skill.
 2. **Pass the query through.** Send the user's wording directly to `kubit_dataset` as `{ "query": "...", "limit": 5 }`. Do not pre-parse, resolve, or reshape parameters — the MCP handles dataset lookup, trace resolution, and operation type (add, update, remove, list). If the user references a trace from a prior `/kubit:inspect` result or pastes a trace id, include that context in the query string. Only include `limit` when the operation is a list.
 3. **Confirm destructive operations.** Before removing a trace from a dataset, confirm with the user. Adding and updating do not require confirmation unless the user's intent is ambiguous.
 4. **Present results.**
