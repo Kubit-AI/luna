@@ -12,7 +12,7 @@ This skill composes other `/kubit:*` skills into multi-step workflows. It is the
 
 Use this skill when a request involves two or more `/kubit:*` skills in sequence. Single-skill requests should go directly to that skill.
 
-> **Scaffold mode:** The `kubit_workflows` MCP tool is not yet available. Until it ships, decompose the workflow into individual skill calls and execute them interactively step by step. Do not offer to save or schedule workflows.
+> **Scaffold mode:** The `workflows` MCP tool is not yet available. Until it ships, decompose the workflow into individual skill calls and execute them interactively step by step. Do not offer to save or schedule workflows.
 
 ## When to Use
 

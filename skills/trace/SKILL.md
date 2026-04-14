@@ -1,11 +1,11 @@
 ---
 name: trace
-description: Look up Kubit analytics traces by name or ID. Orchestrates kubit_init and kubit_trace MCP tool calls.
+description: Look up Kubit analytics traces by name or ID. Orchestrates init and trace MCP tool calls.
 ---
 
 # /kubit:trace
 
-Look up a Kubit trace using the MCP tools `kubit_init` and `kubit_trace`.
+Look up a Kubit trace using the MCP tools `init` and `trace`.
 
 ## When to use
 
@@ -15,7 +15,7 @@ Use when the user wants to look up analytics traces in Kubit — by trace name, 
 
 ### Step 1: Show current organization and workspace
 
-Always call the `kubit_init` MCP tool first. It returns the current organization and workspace, the full list of available orgs/workspaces, and the available trace names.
+Always call the `init` MCP tool first. It returns the current organization and workspace, the full list of available orgs/workspaces, and the available trace names.
 
 Display the current organization and workspace to the user, along with the list of all available options.
 
@@ -23,17 +23,17 @@ Ask the user to confirm the current selection or pick a different one, unless th
 
 ### Step 2: Switch org/workspace (if requested)
 
-If the user wants to use a different organization or workspace, call the `kubit_switch` MCP tool with the chosen `orgId` and `workspaceId`. Confirm the switch succeeded before continuing.
+If the user wants to use a different organization or workspace, call the `switch` MCP tool with the chosen `orgId` and `workspaceId`. Confirm the switch succeeded before continuing.
 
-### Step 3: Call kubit_trace
+### Step 3: Call trace
 
-Pass the user's request directly as a natural language query to the `kubit_trace` MCP tool:
+Pass the user's request directly as a natural language query to the `trace` MCP tool:
 
 ```json
 { "query": "purchase events for trace 400377" }
 ```
 
-The agent inside `kubit_trace` will extract the trace name and/or trace ID from the query automatically. You do not need to parse or resolve parameters yourself.
+The agent inside `trace` will extract the trace name and/or trace ID from the query automatically. You do not need to parse or resolve parameters yourself.
 
 ### Step 4: Present results
 
