@@ -1,6 +1,6 @@
 ---
 name: init
-description: Use this skill to establish a session with Kubit and manage current org and workspace.
+description: Use this skill when starting a Kubit session, switching organization or workspace, or creating a new workspace.
 ---
 
 # /kubit:init
@@ -17,19 +17,23 @@ You will get a SESSION: parameter as part of the `init` and `switch` response. T
 This skill should be invoked when:
 - The user runs /kubit:init for the first time
 - The user wants to switch organization or workspace
+- The user wants to create a new workspace
 - Another Kubit skill needs to be called and you don't have SESSION on the context.
 
 ## Inputs
 
 - `organization` — Kubit organization name or id (optional, prompted if needed)
 - `workspace` — workspace name or ID (optional, prompted if needed)
+- `action` - one of switch | create-workspace (opitonal, inferred from wording)
 
 ## Rules
 
 - Skip organization and workspace prompts if the user has only one of each
 - Do not proceed to other skills if authentication is incomplete, or you don't have a 'session' obtained from `init` or `switch`.
 - Do not persistently store the session token, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
-- You should obtain a new session id if the user was idle for more than one hour. This session id is not for security purposes, it is only used to pin the current workspace and organization id. 
+- Refresh session after 1 hour idle (not a security timeout — just re-pins the workspace)
+- After creating a workspace, always switch into it immediately
+- orgId and workspaceId must always be passed as a pair to `kubit_switch`
 
 ## Examples
 
@@ -44,3 +48,13 @@ Input: /kubit:init switch workspace <workspace id>
 Call the `switch` MCP call with the appropriate org and workspace IDs. The user may specify these with numeric id
 or names.
 Note that orgId and workspaceId come in pairs - you need to pass both when switching org/workspace.
+
+**Example 3 — Create a new workspace:**
+Inpute: /kubit:init ceate workspace "workspace name"
+
+Call: `create_workspace { name: "workspace name", orgId }` →
+      `switch { orgId, workspaceId: <new_id> }` → confirm + store SESSION.
+
+## Gotchas
+
+_to be added as we test._
