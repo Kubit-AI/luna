@@ -32,8 +32,8 @@ This skill should be invoked when:
 - Do not proceed to other skills if authentication is incomplete, or you don't have a 'session' obtained from `init` or `switch`.
 - Do not persistently store the session token, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
 - Refresh session after 1 hour idle (not a security timeout — just re-pins the workspace)
-- After creating a workspace, always switch into it immediately
-- orgId and workspaceId must always be passed as a pair to `kubit_switch`
+- orgId and workspaceId must always be passed as a pair to `switch`
+- After creating a workspace, you get a session id back and can continue working into it immediately
 
 ## Examples
 
@@ -41,6 +41,8 @@ This skill should be invoked when:
 Input: /kubit:init
 
 Call the `init` MCP tool, you will get information about the current user, organization and workspace.
+
+Also get the list of other available organizations and workspaces.
 
 **Example 2 — Switch org / workspace:**
 Input: /kubit:init switch workspace <workspace id>
@@ -50,10 +52,16 @@ or names.
 Note that orgId and workspaceId come in pairs - you need to pass both when switching org/workspace.
 
 **Example 3 — Create a new workspace:**
-Inpute: /kubit:init ceate workspace "workspace name"
+Input: /kubit:init create workspace "workspace name"
 
-Call: `create_workspace { name: "workspace name", orgId }` →
-      `switch { orgId, workspaceId: <new_id> }` → confirm + store SESSION.
+Call: `workspace_create { name: "workspace name", session: <sessionId>, description: <optional>, timezone: <optional>}`
+
+Timezone must be a valid timezone sting, if provided (e.g. "UTC", "America/Los_Angeles", etc). 
+
+Prompt the user to select review all input params and give them ability to adjust, before proceeding.
+
+This task can take 30 seconds or more, please indicate to the user to be patient.
+
 
 ## Gotchas
 
