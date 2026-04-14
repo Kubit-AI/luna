@@ -1,6 +1,6 @@
 {
   "name": "kubit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Kubit LLM-ops skills: inspect traces, build reports, manage datasets, and trace failures back to prompts.",
   "author": {
     "name": "Kubit Inc",
