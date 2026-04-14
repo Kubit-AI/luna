@@ -12,7 +12,6 @@ This repo is both the plugin and a self-hosted marketplace, so it can be install
 | `/kubit:help`      | List all kubit skills and how to use them                        |
 | `/kubit:inspect`   | Inspect users, sessions, traces, and events                      |
 | `/kubit:report`    | Find, run, or create analytics reports                           |
-| `/kubit:trace`     | Look up analytics traces by name or ID                           |
 | `/kubit:blame`     | Trace errors back to agents, skills, prompts, or model versions  |
 | `/kubit:dataset`   | Add to or update golden datasets and evaluation test suites      |
 | `/kubit:workflows` | Chain kubit skills together into reusable pipelines              |
@@ -60,7 +59,6 @@ luna/
     ├── help/SKILL.md
     ├── inspect/SKILL.md
     ├── report/SKILL.md
-    ├── trace/SKILL.md
     ├── blame/SKILL.md
     ├── dataset/SKILL.md
     └── workflows/SKILL.md

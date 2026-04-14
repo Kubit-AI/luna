@@ -15,7 +15,6 @@ skills and routes users to the right one for their task. No authentication requi
     /kubit:help       — List skills and how to use them (you are here)
     /kubit:inspect    — Inspect users, sessions, traces, and events
     /kubit:report     — Find, run, or create analytics reports
-    /kubit:trace      — Look up analytics traces by name or ID
     /kubit:blame      — Trace errors back to agents, skills, or prompts
     /kubit:dataset    — Add or update golden data sets and test suites
     /kubit:workflows  — Chain skills together into automated pipelines
