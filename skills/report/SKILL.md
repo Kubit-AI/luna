@@ -21,11 +21,6 @@ records from a report, use /kubit:inspect.
 - The user wants to modify an existing report (e.g. "add a filter for model=gpt-4", "change the date range to last 30 days", "add a step to this funnel")
 - Do NOT use for inspecting individual records — use /kubit:inspect for that
 
-## Inputs
-
-- `query` (required) — natural language description of what the user wants. Can be a report id, a search phrase, a description of a new report to build, or a modification to an existing report.
-- `limit` (optional) — max search results to return. Defaults to 5.
-
 ## Workflow
 
 1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit:init.
@@ -35,13 +30,28 @@ records from a report, use /kubit:inspect.
    - **Modify** — user references an existing report id and describes a change
    - **Ambiguous** — always search first. 
 2. **Pass the query through.** Send the user's wording directly to `create_report`. Do not pre-parse, resolve, or reshape parameters — the MCP handles report id lookup, search matching, type inference, creation, and modification.
-3. **Present results.**
-   - Single match or created report → return id, URL (if provided), and report data as-is
-   - Multiple matches → compact list with id, name, type. Ask user to pick.
-   - Modified report → return new id and note the original is unchanged
-   - Zero matches → offer to broaden search or create
-   - Relay any MCP clarification questions verbatim
-5. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit:inspect` as a drill-down. Do not suggest `/kubit:inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
+3. **Route the response.** The MCP returns report data. For operations that produce viewable data (opening or viewing a report), the MCP's summary may be based on a limited sample. Route through the kubit-analyst when the full dataset is available.
+
+   **Decision rule:**
+   - **Create, search, modify operations** → Present MCP response directly (no kubit-analyst).
+   - **Multiple search matches** → Compact list with id, name, type. Ask user to pick.
+   - **Modified report** → Return new id and note the original is unchanged.
+   - **Zero matches** → Offer to broaden search or create.
+   - **Report data returned + export URL** → Spawn kubit-analyst on the full dataset (see below).
+   - **Report data returned + no export URL** → Present MCP summary. Add a note: "This summary is based on the MCP's limited sample — CSV export was not available for full-dataset analysis."
+   - Relay any MCP clarification questions verbatim.
+
+   **Kubit-analyst spawn procedure** (for report data + export URL):
+   1. Check prerequisites via Bash:
+      - Run `command -v uv` and `python3 --version`. If neither `uv` nor `python3` is available, tell the user: "Full-dataset analysis requires uv or Python 3, which are not installed on this system." Then fall back to the report results. The kubit-analyst sub-agent handles environment setup and pandas installation internally.
+   2. Spawn the `kubit-analyst` sub-agent with a prompt containing:
+      - **Question:** The user's original question about the report
+      - **Export URL:** The export URL from the MCP response text
+      - **MCP summary:** The MCP's text response — the analyst uses this as context, flags discrepancies with full-dataset findings
+      - **Context:** The report type, any filters applied, and relevant column descriptions
+   3. Present the kubit-analyst's findings conversationally.
+
+4. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit:inspect` as a drill-down. Do not suggest `/kubit:inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
 
 ## Rules
 - Always search before creating when intent is ambiguous

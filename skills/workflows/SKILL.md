@@ -24,13 +24,13 @@ Results from each step are controlled by the limits of the underlying skills (de
 
 ## Workflow
 
-1. **Confirm workspace context.** Verify the current org/workspace is set. If
-   no context exists or the user wants to switch, redirect to /kubit:init.
+1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to `/kubit:init` — workspace and organization selection is owned by that skill.
+2. **Decompose the request.** Identify which `/kubit:*` skills the workflow needs and in what order. Map how results flow between steps (e.g. trace ids from `/kubit:inspect` become inputs to `/kubit:dataset`). Echo the plan back to the user before executing.
 
-2. **Decompose and confirm the plan.** Identify which skills are needed and in
-   what order. Map how results flow between steps (e.g. trace ids from
-   /kubit:inspect become inputs to /kubit:dataset). Echo the plan back to the
-   user and confirm before executing.
+   The kubit-analyst sub-agent is the default analysis path for any multi-result query that returns an export URL. It is spawned by the skill executing that step — the workflow skill does not spawn it directly. When a workflow step involves `/kubit:inspect` or `/kubit:report` with multi-result data, expect those skills to route through kubit-analyst automatically for full-dataset analysis.
+
+3. **Execute step by step.** Run each skill in sequence using the existing individual skills. Pass results from one step into the next. Surface intermediate results after each step so the user can intervene, adjust, or stop if something goes wrong. If any step is destructive (e.g. removing traces via `/kubit:dataset`), confirm that step individually — do not rely on the initial workflow confirmation alone.
+4. **Present the final summary.** After all steps complete, summarize what each step produced with references to the artifacts created (report ids, trace ids, dataset names, blame results).
 
 3. **Execute step by step.** Run each skill in sequence. Pass results from one
    step into the next. Surface intermediate results after each step so the user
