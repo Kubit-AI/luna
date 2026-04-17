@@ -16,7 +16,7 @@ const SHIPPED_SKILLS = ['connect', 'help', 'inspect', 'report', 'update'];
 const HELP = `kubit-agent-plugin — install the Kubit agent plugin into Claude Code and/or Cursor
 
 Usage:
-  npx @kubit/agent-plugin [options]
+  npx @kubit-ai/agent-plugin [options]
 
 Runtime (pick one or more; prompted if omitted):
   --claude               Install for Claude Code

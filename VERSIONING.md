@@ -1,6 +1,6 @@
 # Versioning
 
-`@kubit/agent-plugin` follows [Semantic Versioning 2.0.0](https://semver.org/).
+`@kubit-ai/agent-plugin` follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## Version rules
 
@@ -16,8 +16,8 @@
 
 Two npm dist-tags govern availability:
 
-- **`latest`** — stable production builds. Default install target for `npx @kubit/agent-plugin`.
-- **`next`** — pre-release builds for early adopters. Opt-in via `npx @kubit/agent-plugin@next`.
+- **`latest`** — stable production builds. Default install target for `npx @kubit-ai/agent-plugin`.
+- **`next`** — pre-release builds for early adopters. Opt-in via `npx @kubit-ai/agent-plugin@next`.
 
 Publish with `npm publish --access public` (→ `latest`) or `npm publish --tag next --access public` (→ `next`).
 

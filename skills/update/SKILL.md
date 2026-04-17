@@ -7,7 +7,7 @@ description: Use this skill when the user wants to check for or install updates 
 
 ## Overview
 
-Checks npm for a newer version of `@kubit/agent-plugin`, shows what changed,
+Checks npm for a newer version of `@kubit-ai/agent-plugin`, shows what changed,
 asks the user to confirm, and then re-runs the installer to apply the update.
 No session required — this skill works without `/kubit-connect`.
 
@@ -16,7 +16,7 @@ No session required — this skill works without `/kubit-connect`.
 - The user asks whether there's a newer version of Kubit.
 - The user asks to upgrade, update, or refresh the plugin.
 - Another Kubit skill reports a capability that only exists in a newer version
-  (e.g. "this requires @kubit/agent-plugin 0.3+").
+  (e.g. "this requires @kubit-ai/agent-plugin 0.3+").
 
 ## Steps
 
@@ -45,7 +45,7 @@ echo "installed: $INSTALLED"
 ### 3. Query the latest version on npm
 
 ```bash
-LATEST="$(npm view @kubit/agent-plugin version 2>/dev/null)"
+LATEST="$(npm view @kubit-ai/agent-plugin version 2>/dev/null)"
 if [ -z "$LATEST" ]; then
   echo "ERROR: could not reach npm"
   exit 1
@@ -78,7 +78,7 @@ fi
 ```bash
 TMP="$(mktemp -d /tmp/kubit-update-XXXXXX)"
 cd "$TMP"
-TGZ="$(npm pack @kubit/agent-plugin@latest 2>/dev/null | tail -n 1)"
+TGZ="$(npm pack @kubit-ai/agent-plugin@latest 2>/dev/null | tail -n 1)"
 tar -xzf "$TGZ"
 awk -v installed="$INSTALLED" '
   /^## \[[0-9]/ {
@@ -119,7 +119,7 @@ destructive.
 ### 8. Run the installer
 
 ```bash
-npx -y @kubit/agent-plugin@latest --"$RUNTIME" --"$SCOPE" --yes
+npx -y @kubit-ai/agent-plugin@latest --"$RUNTIME" --"$SCOPE" --yes
 ```
 
 The installer overwrites the managed files, writes the new VERSION, and exits.
@@ -136,7 +136,7 @@ installer appears to have failed and point them to the npm logs.
 
 On success, tell the user:
 
-> Updated @kubit/agent-plugin from `<INSTALLED>` to `<NEW_VERSION>`. Restart <Claude Code | Cursor> to pick up the new skills.
+> Updated @kubit-ai/agent-plugin from `<INSTALLED>` to `<NEW_VERSION>`. Restart <Claude Code | Cursor> to pick up the new skills.
 
 (Use the right runtime name based on `$RUNTIME`.)
 
@@ -156,7 +156,7 @@ On success, tell the user:
 - **Pre-release users** (installed via `@next` tag) — `npm view … version`
   returns the `latest` tag's version, so this skill may suggest "downgrading"
   them from a `next` build. The `AHEAD_OF_LATEST` branch catches this and
-  stops. Users on `next` should re-run `npx @kubit/agent-plugin@next` manually.
+  stops. Users on `next` should re-run `npx @kubit-ai/agent-plugin@next` manually.
 - **`sort -V`** handles proper semver but not all pre-release suffix orderings.
   For `-rc.N` and `-beta.N` suffixes, trust the `AHEAD_OF_LATEST` branch and
   advise manual reinstall.

@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repo. End-user install, usage, and
 
 ## Project Overview
 
-This repo is the `@kubit/agent-plugin` npm package — an agent plugin that ships `/kubit-*` skills for Kubit's LLM-ops platform (inspect traces, build analytics reports). It targets **Claude Code and Cursor**, installed via `npx @kubit/agent-plugin`.
+This repo is the `@kubit-ai/agent-plugin` npm package — an agent plugin that ships `/kubit-*` skills for Kubit's LLM-ops platform (inspect traces, build analytics reports). It targets **Claude Code and Cursor**, installed via `npx @kubit-ai/agent-plugin`.
 
 ## Working style
 

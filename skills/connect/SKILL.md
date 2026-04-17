@@ -35,7 +35,7 @@ switch / create-workspace.
 CONFIG_DIR="{{KUBIT_CONFIG_DIR}}"
 VERSION_FILE="$CONFIG_DIR/kubit/VERSION"
 INSTALLED="$([ -f "$VERSION_FILE" ] && cat "$VERSION_FILE" || echo 0.0.0)"
-LATEST="$(npm view @kubit/agent-plugin version 2>/dev/null)"
+LATEST="$(npm view @kubit-ai/agent-plugin version 2>/dev/null)"
 
 if [ -n "$LATEST" ] \
   && [ "$INSTALLED" != "$LATEST" ] \

@@ -15,9 +15,9 @@ An agent plugin that adds `/kubit-*` skills to Claude Code and Cursor for workin
 ## Install
 
 ```bash
-npx @kubit/agent-plugin --claude      # Claude Code
-npx @kubit/agent-plugin --cursor      # Cursor
-npx @kubit/agent-plugin --all         # both
+npx @kubit-ai/agent-plugin --claude      # Claude Code
+npx @kubit-ai/agent-plugin --cursor      # Cursor
+npx @kubit-ai/agent-plugin --all         # both
 ```
 
 Flags: `--global` (default, user-wide) or `--local` (current directory); `--uninstall` to remove; `--yes` for non-interactive.
@@ -110,7 +110,7 @@ luna/
 
 ## Release (maintainers)
 
-1. (One-time) Create the `@kubit` scope on npmjs.com and `npm login`.
+1. (One-time) Create the `@kubit-ai` scope on npmjs.com and `npm login`.
 2. Bump `version` in `package.json`.
 3. Update `CHANGELOG.md` — move the `[Unreleased]` section under the new version header with today's date.
 4. Commit and tag.
