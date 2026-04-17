@@ -1,6 +1,6 @@
 {
   "name": "@kubit-ai/agent-plugin",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Kubit LLM-ops skills for Claude Code and Cursor: inspect traces and build analytics reports against the Kubit platform.",
   "bin": {
     "kubit-agent-plugin": "bin/install.js"

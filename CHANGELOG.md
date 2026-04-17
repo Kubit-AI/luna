@@ -4,6 +4,12 @@ All notable changes to `@kubit-ai/agent-plugin` are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/).
 
+## [0.0.2] - 2026-04-17
+
+### Changed
+
+- Trimmed `README.md` to public-facing content: removed local development, repo layout, and maintainer release sections; shortened the MCP section.
+
 ## [0.0.1] - 2026-04-17
 
 Initial release.
