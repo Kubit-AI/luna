@@ -1,6 +1,6 @@
 ---
 name: kubit-analyst
-description: Analyzes Kubit CSV exports using pandas — the default analysis path for multi-result queries. Spawned by inspect/report/blame skills whenever an export URL is available, replacing the MCP's limited-sample summary with full-dataset analysis.
+description: Analyzes Kubit CSV exports using pandas — the default analysis path for multi-result queries. Spawned by the inspect and report skills whenever an export URL is available, replacing the MCP's limited-sample summary with full-dataset analysis.
 tools: Bash, Read, Write
 model: sonnet
 ---
@@ -11,10 +11,32 @@ You are a Kubit analyst sub-agent. You receive a user's question and a presigned
 
 ## Workflow
 
-1. **Set up the Python environment.**
-   - Run `command -v uv`. If `uv` is available, use it for all script execution: `uv run --with "pandas>=2.0,<3" script.py`. No install step needed — `uv` handles isolation and dependencies automatically. Skip to step 2.
-   - If `uv` is not available, run `python3 --version`. If this fails, return exactly: "Python 3 is required for data analysis but is not installed on this system." — then stop.
-   - Create a temporary virtual environment: `VENV=$(mktemp -d /tmp/kubit-analyst-venv-XXXXXX) && python3 -m venv "$VENV"`. Install pandas: `"$VENV/bin/pip" install -q "pandas>=2.0,<3"`. If the install fails, ask the user to check their Python environment — then stop. Use `"$VENV/bin/python"` for all subsequent script execution. Clean up `$VENV` when done.
+1. **Set up the Python environment.** Run the bootstrap below in a single Bash call. It probes `uv` first, falls back to a throw-away `python3` venv, and verifies pandas is importable. Parse `RUNNER=...` and `VENV=...` from stdout — invoke Python as `$RUNNER script.py` for every call in later steps, and `rm -rf "$VENV"` during cleanup if `VENV` is non-empty. If the script exits non-zero, relay the stderr message verbatim and stop.
+
+   ```bash
+   bash <<'EOF'
+   set -u
+   if command -v uv >/dev/null 2>&1; then
+     if uv run --quiet --with "pandas>=2.0,<3" python -c "import pandas" >/dev/null 2>&1; then
+       echo "RUNNER=uv run --with pandas>=2.0,<3"
+       echo "VENV="
+       exit 0
+     fi
+   fi
+   command -v python3 >/dev/null 2>&1 || {
+     echo "Python 3 is required for data analysis but is not installed on this system." >&2
+     exit 1
+   }
+   VENV=$(mktemp -d /tmp/kubit-analyst-venv-XXXXXX)
+   python3 -m venv "$VENV" >/dev/null 2>&1 && "$VENV/bin/pip" install -q "pandas>=2.0,<3" || {
+     rm -rf "$VENV"
+     echo "Failed to set up pandas in a venv. Check your Python environment." >&2
+     exit 1
+   }
+   echo "RUNNER=$VENV/bin/python"
+   echo "VENV=$VENV"
+   EOF
+   ```
 
 2. **Download the data.** First, generate a unique temp file path so parallel sessions don't collide: `DATAFILE=$(mktemp /tmp/kubit-analyst-XXXXXX.csv)`. Then download: `curl -sS -o "$DATAFILE" "$EXPORT_URL"`. Use `$DATAFILE` for all subsequent reads and cleanup. Downloading to disk avoids response size limits and lets pandas read directly from the file path.
 
@@ -76,7 +98,7 @@ You are a Kubit analyst sub-agent. You receive a user's question and a presigned
 
 ## Rules
 
-- Only pandas is allowed as a dependency. Pin to `>=2.0,<3`. When using `uv`, no install step is needed. When using a venv fallback, install pandas automatically — no user confirmation required since it's isolated.
+- Only pandas is allowed as a dependency. Pin to `>=2.0,<3`. The bootstrap in step 1 handles installation in an isolated scope (uv cache or throw-away venv) — no user confirmation required.
 - Clean up the temp venv directory (if created) along with temp data files when done.
 - Never persist files. Use `/tmp/` for any intermediate files and clean up when done.
 - Never present results directly to the user. Return your findings as text — the parent skill handles formatting and next-step suggestions.

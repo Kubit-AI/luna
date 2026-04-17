@@ -1,9 +1,9 @@
 ---
-name: init
+name: connect
 description: Use this skill when starting a Kubit session, switching organization or workspace, or creating a new workspace.
 ---
 
-# /kubit:init
+# /kubit-connect
 
 ## Overview
 
@@ -15,7 +15,7 @@ You will get a SESSION: parameter as part of the `init` and `switch` response. T
 ## When to Use
 
 This skill should be invoked when:
-- The user runs /kubit:init for the first time
+- The user runs /kubit-connect for the first time
 - The user wants to switch organization or workspace
 - The user wants to create a new workspace
 - Another Kubit skill needs to be called and you don't have SESSION on the context.
@@ -25,6 +25,27 @@ This skill should be invoked when:
 - `organization` — Kubit organization name or id (optional, prompted if needed)
 - `workspace` — workspace name or ID (optional, prompted if needed)
 - `action` - one of switch | create-workspace (opitonal, inferred from wording)
+
+## Pre-flight: check for updates
+
+Run this once at the start of the first-time init flow (Example 1). Skip for
+switch / create-workspace.
+
+```bash
+CONFIG_DIR="{{KUBIT_CONFIG_DIR}}"
+VERSION_FILE="$CONFIG_DIR/kubit/VERSION"
+INSTALLED="$([ -f "$VERSION_FILE" ] && cat "$VERSION_FILE" || echo 0.0.0)"
+LATEST="$(npm view @kubit/agent-plugin version 2>/dev/null)"
+
+if [ -n "$LATEST" ] \
+  && [ "$INSTALLED" != "$LATEST" ] \
+  && [ "$(printf '%s\n%s\n' "$INSTALLED" "$LATEST" | sort -V | tail -1)" = "$LATEST" ]; then
+  echo "kubit $INSTALLED → $LATEST available — run /kubit-update to upgrade."
+fi
+```
+
+Stay silent on every other branch (already latest, ahead of latest, npm unreachable).
+Always continue to `init` regardless — this notice is informational only.
 
 ## Rules
 
@@ -38,21 +59,23 @@ This skill should be invoked when:
 ## Examples
 
 **Example 1 — First time access:**
-Input: /kubit:init
+Input: /kubit-connect
 
-Call the `init` MCP tool, you will get information about the current user, organization and workspace.
+First, run the **Pre-flight: check for updates** step above.
+
+Then call the `init` MCP tool, you will get information about the current user, organization and workspace.
 
 Also get the list of other available organizations and workspaces.
 
 **Example 2 — Switch org / workspace:**
-Input: /kubit:init switch workspace <workspace id>
+Input: /kubit-connect switch workspace <workspace id>
 
 Call the `switch` MCP call with the appropriate org and workspace IDs. The user may specify these with numeric id
 or names.
 Note that orgId and workspaceId come in pairs - you need to pass both when switching org/workspace.
 
 **Example 3 — Create a new workspace:**
-Input: /kubit:init create workspace "workspace name"
+Input: /kubit-connect create workspace "workspace name"
 
 Call: `workspace_create { name: "workspace name", session: <sessionId>, description: <optional>, timezone: <optional>}`
 

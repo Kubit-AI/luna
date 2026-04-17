@@ -3,7 +3,7 @@ name: inspect
 description: Use this skill when the user wants to find or drill into raw Kubit data — traces, sessions, users, or events.
 ---
 
-# /kubit:inspect
+# /kubit-inspect
 
 ## Overview
 
@@ -11,7 +11,7 @@ This skill finds and investigates Kubit entities — users, sessions, traces, an
 events. Entities are hierarchical: a user has sessions, a session has traces, a
 trace has events. Start at any level and navigate down. When multiple results are
 returned, summarize the pattern across them — do not dump raw fields. For
-aggregate analytics and trends, use /kubit:report.
+aggregate analytics and trends, use /kubit-report.
 
 ## When to Use
 
@@ -23,7 +23,7 @@ aggregate analytics and trends, use /kubit:report.
 
 ## Workflow
 
-1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit:init — workspace and organization selection is owned by that skill.
+1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit-connect — workspace and organization selection is owned by that skill.
 2. **Pass the query through.** Send the user's wording directly to `inspect`. Do not pre-parse, resolve, or reshape parameters — the MCP handles entity type, filters, schema, and date range. If the user references a prior report or pastes a report URL, include that context in the query string. If the MCP asks which entity type to query (users, sessions, traces, events), present the options to the user rather than guessing.
 3. **Route the response.** The MCP returns a text response containing a summary and selected rows. The MCP's summary is based on a limited sample (~100 traces) — when the full dataset is larger, route through the kubit-analyst for accurate analysis.
 
@@ -53,8 +53,8 @@ aggregate analytics and trends, use /kubit:report.
 4. **Offer next steps based on entity type.**
    - User → "Want to see sessions or traces for [user email/id]?"
    - Session → "Want to see the traces in session [session id]?"
-   - Trace → "Want to see events for trace [trace id], or blame the responsible agent?"
-   - Multiple traces → suggest /kubit:blame to attribute failures, or /kubit:report if the user wants to see the trend over time.
+   - Trace → "Want to see events for trace [trace id]?"
+   - Multiple traces → suggest /kubit-report if the user wants to see the trend over time.
 
 ## Rules
 - Summarize when returning multiple results - never list raw fields without context
@@ -74,7 +74,7 @@ aggregate analytics and trends, use /kubit:report.
 ## Examples
 
 **Inspect a user:**
-Input: /kubit:inspect user alex@acme.com
+Input: /kubit-inspect user alex@acme.com
 Output: User summary — cost, latency, tokens, top errors, session count, top intent.
         Offer to drill into sessions or traces.
 
@@ -83,10 +83,10 @@ Input: show me sessions for alex@acme.com
 Output: Pattern summary — failure rate, avg cost, avg latency, common errors.
 
 **Failed traces with filters:**
-Input: /kubit:inspect failed traces with intent Checkout since yesterday
+Input: /kubit-inspect failed traces with intent Checkout since yesterday
 Output: Pattern summary — avg cost, avg latency, avg tokens, common error, common model.
         List with cost, latency, intent, and timestamp per trace. Total count shown.
-        Offer to blame the responsible agent or report the trend over time.
+        Offer to report the trend over time.
 
 **Drill into a report segment:**
 Input: inspect the users who dropped off at payment in that funnel
@@ -94,7 +94,7 @@ Output: User summary with cost and error signals for the dropped-off segment.
         Offer to inspect sessions or traces for [user email/id].
 
 **Zero results:**
-Input: /kubit:inspect traces with intent "ResetPassword" in the last hour
+Input: /kubit-inspect traces with intent "ResetPassword" in the last hour
 Output: No matching results. Suggest broadening time range or checking the intent name.
 
 ## Gotchas

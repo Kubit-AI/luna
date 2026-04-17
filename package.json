@@ -1,0 +1,37 @@
+{
+  "name": "@kubit/agent-plugin",
+  "version": "0.0.1",
+  "description": "Kubit LLM-ops skills for Claude Code and Cursor: inspect traces and build analytics reports against the Kubit platform.",
+  "bin": {
+    "kubit-agent-plugin": "bin/install.js"
+  },
+  "files": [
+    "bin",
+    ".mcp.json",
+    "skills",
+    "agents",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSIONING.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "cursor",
+    "kubit",
+    "observability",
+    "analytics",
+    "mcp",
+    "plugin"
+  ],
+  "author": {
+    "name": "Kubit Inc",
+    "url": "https://www.kubit.ai"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "homepage": "https://www.kubit.ai",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
