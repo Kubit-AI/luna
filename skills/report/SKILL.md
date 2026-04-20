@@ -24,13 +24,21 @@ records from a report, use /kubit-inspect.
 ## Workflow
 
 1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit-connect.
-2. **Determine intent.** Before calling the MCP, identify what the user wants:
+2. **Check for a cached dataset (session-scoped).** Compute the cache key from the current MCP SESSION token so concurrent sessions don't collide:
+
+   ```bash
+   SESSION_KEY=$(printf %s "$SESSION" | shasum -a 256 | cut -c1-12)
+   CACHE_DIR="/tmp/kubit-dataset/$SESSION_KEY"
+   ```
+
+   If `$CACHE_DIR/current.json` exists, read it. If the user's message is a follow-up analysis or narrowing question about that same dataset (e.g. references "those", "the ones", "that set", or asks for a different cut of the data just shown), **skip the MCP call** and spawn `kubit-analyst` with `Dataset path: $CACHE_DIR/current.csv` plus the cached manifest's question and columns as Context. Otherwise proceed below — a new MCP call will replace this session's cached dataset. When unsure, prefer a fresh fetch.
+3. **Determine intent.** Before calling the MCP, identify what the user wants:
    - **Find/open** — user references a report by id, name, or description
    - **Create** — user uses explicit creation language: "create", "build","make", "new", "set up", "give me a..." — or a search returned zero matches and the user confirmed they want to create
    - **Modify** — user references an existing report id and describes a change
    - **Ambiguous** — always search first. 
-2. **Pass the query through.** Send the user's wording directly to `create_report`. Do not pre-parse, resolve, or reshape parameters — the MCP handles report id lookup, search matching, type inference, creation, and modification.
-3. **Route the response.** The MCP returns report data. For operations that produce viewable data (opening or viewing a report), the MCP's summary may be based on a limited sample. Route through the kubit-analyst when the full dataset is available.
+4. **Pass the query through.** Send the user's wording directly to `create_report`. Do not pre-parse, resolve, or reshape parameters — the MCP handles report id lookup, search matching, type inference, creation, and modification.
+5. **Route the response.** The MCP returns report data. For operations that produce viewable data (opening or viewing a report), the MCP's summary may be based on a limited sample. Route through the kubit-analyst when the full dataset is available.
 
    **Decision rule:**
    - **Create, search, modify operations** → Present MCP response directly (no kubit-analyst).
@@ -48,11 +56,21 @@ records from a report, use /kubit-inspect.
    2. Spawn the `kubit-analyst` sub-agent with a prompt containing:
       - **Question:** The user's original question about the report
       - **Export URL:** The export URL from the MCP response text
+      - **Session key:** `$SESSION_KEY` (from step 2 — tells the analyst where to cache)
+      - **Source:** `report` (recorded in the dataset manifest)
       - **MCP summary:** The MCP's text response — the analyst uses this as context, flags discrepancies with full-dataset findings
       - **Context:** The report type, any filters applied, and relevant column descriptions
    3. Present the kubit-analyst's findings conversationally.
 
-4. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
+   **Cached-dataset spawn** (for step 2 follow-ups that reuse `$CACHE_DIR/current.csv`):
+   1. Check prerequisites via Bash (`command -v uv`, `python3 --version`). If neither is available, tell the user and stop — there's no MCP fallback on this path.
+   2. Spawn `kubit-analyst` with:
+      - **Question:** The user's follow-up question
+      - **Dataset path:** `$CACHE_DIR/current.csv` (already session-scoped)
+      - **Context:** The original question and column list from `$CACHE_DIR/current.json`
+   3. Present findings conversationally.
+
+6. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
 
 ## Rules
 - Always search before creating when intent is ambiguous
@@ -99,7 +117,3 @@ Output: Modified report saved as new id. Original rpt_10798 unchanged.
 Input: /kubit-report latency by provider
 Output: "No report matched 'latency by provider.'
         Want me to create a new one, or try a broader search?"
-
-## Gotchas
-
-_To be added as we test._
