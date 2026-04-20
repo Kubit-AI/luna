@@ -119,10 +119,18 @@ destructive.
 ### 8. Run the installer
 
 ```bash
-npx -y @kubit-ai/agent-plugin@latest --"$RUNTIME" --"$SCOPE" --yes
+case "$RUNTIME" in
+  claude) CHOICE=1 ;;
+  cursor) CHOICE=2 ;;
+  *) echo "ERROR: unknown runtime '$RUNTIME'"; exit 1 ;;
+esac
+printf '%s\n' "$CHOICE" | npx -y @kubit-ai/agent-plugin@latest --"$SCOPE" --yes
 ```
 
-The installer overwrites the managed files, writes the new VERSION, and exits.
+The installer prompts interactively for the runtime (Claude Code / Cursor /
+Both); piping the numeric choice answers that prompt non-interactively. `--yes`
+skips the location prompt. The installer then overwrites the managed files,
+writes the new VERSION, and exits.
 
 ### 9. Verify and report
 

@@ -55,6 +55,7 @@ aggregate analytics and trends, use /kubit-report.
    - Session → "Want to see the traces in session [session id]?"
    - Trace → "Want to see events for trace [trace id]?"
    - Multiple traces → suggest /kubit-report if the user wants to see the trend over time.
+   - Errors / failures among the returned traces → After the entity-specific offer, add a one-line suggestion: "If you want to find the code change behind these failures, try /kubit-blame." Do not run it yourself.
 
 ## Rules
 - Summarize when returning multiple results - never list raw fields without context
@@ -62,6 +63,7 @@ aggregate analytics and trends, use /kubit-report.
 - Trust the MCP's row selection — don't truncate or pad results client-side.
 - The MCP is stateless — every call must include all necessary identifiers. When the user follows up on a previous result, extract the relevant entity id from the prior response and include it explicitly in the new query.
 - Do not restructure the MCP's stats into tables, bullet lists, or other rigid formats unless the user asks for a specific format. Use conversational prose with inline numbers.
+- When inspected traces contain failures, errors, or unexpected behavior, suggest `/kubit-blame` as a next step — but never invoke it automatically.
 
 ## Error Handling
 

@@ -1,68 +1,165 @@
 ---
 name: blame
-description: Use this skill when the user wants to know which agent, skill, or prompt caused errors, escalations, or sentiment drift.
+description: Use this skill when the user wants to find the code change responsible for a trace regression — errors, sentiment drift, escalations, intent accuracy drops. Blame is downstream of /kubit-report and /kubit-inspect and never fetches metrics itself.
 ---
 
 # /kubit-blame
 
 ## Overview
 
-This skill traces errors, bad intent classifications, sentiment drift, escalations,
-and other LLM ops issues back to the agents, skills, or prompts responsible. It
-answers: what went wrong, and whose fault is it? The MCP can accept explicit agent
-names or infer responsible agents from recent tracing activity. Workspace and
-organization are managed by /kubit-connect.
+This skill is "git blame for agents". Given trace data flagged as problematic,
+it finds the recent commit(s) most likely responsible. It detects which
+tracing framework your repo uses (Langfuse, LangSmith, Pydantic Logfire,
+OpenAI Agents SDK, OpenInference / Arize Phoenix, OpenLLMetry / Traceloop,
+or OpenTelemetry GenAI), maps trace identifiers to concrete code locations with
+user confirmation for anything ambiguous, then runs `git log` over those
+locations and ranks suspects by temporal proximity, coverage, and diff
+surface — each with a short behavioral-change summary.
 
 ## When to Use
 
-- The user wants to know which agent, skill, or prompt caused errors or degraded performance
-- The user wants to attribute escalations, bad intent, or sentiment drift to a source
-- The user provides a metric and threshold (e.g. "escalation_count > 1","sentiment drift < 0.3")
-- The user asks "what changed", "who caused this", "why are errors up", or "which prompt is responsible"
-- Do NOT use for raw record lookup — use /kubit-inspect for that
+- The user is investigating a metric regression flagged by `/kubit-report` or
+  an error cluster surfaced by `/kubit-inspect` and wants to know which
+  commit caused it.
+- The user points at a specific failing trace and asks what changed.
+- The user wants to overlay commit history against a metric curve for a
+  given window.
+- Do NOT use to fetch metrics or traces — route to `/kubit-report` or
+  `/kubit-inspect` instead.
+
+## Composition with other skills
+
+- Blame is downstream. When `/kubit-report` or `/kubit-inspect` surfaces
+  errors, they print a natural-language suggestion pointing at this skill.
+  The user chooses whether to follow.
+- Blame accepts free-form input — no flags. Examples:
+  - *"blame the checkout escalations from last week"*
+  - *"why did trace t_abc fail — what changed?"*
+  - *"find the commit behind the sentiment drop in the report I just ran"*
+- Blame never calls Kubit MCP tools itself. If trace data is only available
+  as an export URL, use the `kubit-analyst` subagent to pull and parse it —
+  that is reading an artifact, not fetching a metric.
 
 ## Workflow
 
-1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit-connect — workspace and organization selection is owned by that skill.
-2. **Pass the query through.** Send the user's wording directly to `blame` as `{ "query": "...", "limit": 5 }`. Do not pre-parse, resolve, or reshape parameters — the MCP handles agent resolution, metric lookup, threshold evaluation, and time range inference. Only include `limit` when the user expects a ranked list.
-3. **Present attribution results.** Return results as a structured list showing which agents, skills, or prompts are responsible, along with the relevant metrics. Present the data in whatever shape the MCP returns — do not reformat. If agents were inferred (not named by the user), state that before the list. You may add a 1–2 line contextual note after the results if it adds value. If the MCP returns suggestions or clarification questions, relay them verbatim. If 0 results match, say so and suggest broadening the query or checking the metric/agent names.
-4. **Offer next steps.** Ask if the user wants to drill into specific records with `/kubit-inspect`, build a report to track the metric over time with `/kubit-report`, or refine the blame query with different thresholds or time ranges.
+1. **Parse the user's phrasing.** Extract what you can: trace identifiers
+   (trace/session ids, agent names, tool names), metric name + direction,
+   time window. Do not guess — if the phrasing is ambiguous about any of
+   these, ask the user one short question to clarify.
+
+2. **Detect the tracing framework.** Grep the user's current working
+   directory (their application repo, NOT this skill's install dir) for
+   dependency signals from each adapter. The adapter files ship inside the
+   installed skill at:
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/<framework>.md`
+
+   Adapters to check (section 1 of each for the grep patterns):
+   - `langfuse.md`
+   - `langsmith.md`
+   - `logfire.md`
+   - `openai-agents.md`
+   - `openinference.md`
+   - `openllmetry.md`
+   - `otel-genai.md`
+
+   Check `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, and
+   a shallow scan of top-level imports. If multiple frameworks match, ask
+   the user which one produced the traces in question (or "all"). If none
+   match, ask the user which framework is in use — do not guess.
+
+3. **Resolve trace data.** If the user gave only a report / export URL,
+   spawn `kubit-analyst` to parse it and extract trace identifiers. If the
+   user gave raw trace JSON or explicit ids, use those directly.
+
+4. **Dispatch `kubit-blame-mapper`.** Pass: the detected framework(s), the
+   absolute path(s) to the adapter file(s), the extracted trace
+   identifiers, and the repo root. The subagent returns a compact JSON
+   mapping table.
+
+5. **User-confirmation gate.** For every row where `status != "confirmed"`:
+   - `ambiguous` → list the candidates to the user and ask them to pick one
+     or skip that identifier.
+   - `unresolved` → show the reason; ask the user to supply the code
+     location manually (e.g. "paste the prompt body" or "which file
+     defines this agent?") or skip.
+   - Do not proceed to the correlator until every row is either confirmed
+     or skipped.
+
+6. **Resolve the time window.** If the handoff or user phrasing gave an
+   explicit `[since, until]`, use it. Otherwise ask the user one question
+   for it — do not infer.
+
+7. **Dispatch `kubit-blame-correlator`.** Pass: the confirmed mappings, the
+   time window, and any metric context.
+
+8. **Present results in three blocks.**
+
+   **Block 1 — Resolved context** (one or two lines): framework, count of
+   mapped locations, window.
+
+   **Block 2 — Ranked suspects** (top N, default 5): one entry per suspect
+   with SHA, date, author, message, touched paths, semantic summary, score
+   with breakdown, and a drill offer. If the top score ≥ 0.7 and the next
+   is < 0.4, lead with *"Most likely cause: #1."* Otherwise stay neutral.
+
+   **Block 3 — Next actions:**
+   - Raw diff of a specific SHA → re-dispatch correlator with that SHA.
+   - Inspect failing traces side-by-side → hand off to `/kubit-inspect`.
+   - Watch metric over time → hand off to `/kubit-report`.
+   - Re-run with wider window → re-dispatch correlator with a new window.
+
+   Special cases:
+   - `weak_correlation: true` → Block 2 capped at 3; Block 3 leads with
+     *"No strong code suspect. This may be data drift or a model-side
+     change, not a code regression."*
+   - Empty suspects → Block 2 omitted; Block 3 leads with
+     *"No commits found in mapped locations during the window. Try
+     widening the window or revisiting the mapping."*
+
+## Rules
+
+- Never fetch metrics or traces directly. Delegate to `/kubit-report`,
+  `/kubit-inspect`, or the `kubit-analyst` subagent.
+- Never silently disambiguate a mapping. Ask the user for every
+  `ambiguous` or `unresolved` row.
+- Never fall back to filesystem timestamps if git history is unavailable.
+- Present numbers with context (temporal proximity, coverage, diff
+  surface) — a raw SHA without a "why" is not useful.
 
 ## Error Handling
 
-- User wants to switch org/workspace → "Run /kubit-connect to switch."
-- No agents match the threshold → "No agents breached that threshold. Try lowering the threshold or expanding the time range."
-- Unrecognized metric or agent name → Relay the MCP's clarification question verbatim and let the user correct.
-- MCP failure → "Could not connect to the kubit MCP server. Check your network."
+- **No framework detected.** Ask the user which framework is in use.
+- **Multiple frameworks detected.** Ask the user which produced these
+  traces, or accept "all" — then run the mapper once per framework.
+- **Malformed handoff / ambiguous phrasing.** Ask one clarifying question;
+  refuse to invent values.
+- **Not a git checkout.** Surface the correlator's clear error; suggest
+  running blame inside the dev repo that produces these traces.
+- **Shallow clone.** Warn explicitly; offer `git fetch --unshallow` and
+  re-dispatch.
+- **Mapping scope too large.** Mapper returns `status: "scope_too_large"`.
+  Ask the user to narrow the handoff (fewer traces, specific agent).
 
 ## Examples
 
-**Named agent with threshold:**
-Input: /kubit-blame CheckOut escalation_count > 1
-Output: Attribution results for CheckOut — agents ranked by escalation count,
-        those breaching threshold highlighted. Total count shown.
+**Metric-regression driven (primary):**
+Input: *"blame the checkout escalation spike from last week"*
+Output: Framework: OpenAI Agents SDK. Three trace identifiers mapped, two
+        confirmed and one picked by the user. Top suspect: commit 7f3a1c2
+        on 2026-04-12 — tightened refund eligibility prompt; score 0.87.
 
-**Metric threshold only — MCP infers agents:**
-Input: /kubit-blame sentiment drift < 0.3
-Output: MCP infers responsible agents from recent activity. State that agents
-        were inferred before showing results. Attribution data returned as-is.
+**Trace-driven exploratory:**
+Input: *"why did trace t_abc fail — what changed?"*
+Output: Mapper identifies the agent + tool involved in the trace. After user
+        confirms, correlator shows two commits in the last week that touched
+        the mapped locations.
 
-**Root cause investigation:**
-Input: why are checkout errors up this week?
-Output: Attribution results — agents, skills, or prompts linked to the error
-        spike. Contextual note on what changed. Offer to inspect records or
-        report the trend.
+**Zero suspects:**
+Input: blame a metric drift when the mapped files have no commits in the
+       window
+Output: Block 2 omitted. Block 3 leads with the no-commits guidance and
+        offers a wider window.
 
-**Prompt-level attribution:**
-Input: which prompt is causing the worst intent accuracy?
-Output: Prompts ranked by intent accuracy degradation. Offer to drill into
-        affected traces with /kubit-inspect.
-
-**Zero results:**
-Input: /kubit-blame escalation_count > 100 last 24 hours
-Output: "No agents had escalation_count > 100 in the last 24 hours.
-        Try lowering the threshold or expanding the time range."
-        
 ## Gotchas
 
 _To be added as we test._

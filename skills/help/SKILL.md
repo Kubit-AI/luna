@@ -27,6 +27,14 @@ SESSION token everything else depends on.
     /kubit-connect switch workspace staging
     /kubit-connect create workspace "q2-experiments"
 ---
+### /kubit-blame
+Finds the code change behind a trace regression — errors, sentiment drift,
+escalations, intent accuracy drops. Downstream of /kubit-report and
+/kubit-inspect: they detect the regression and suggest blame; blame maps
+traces to code and ranks recent commits.
+    /kubit-blame find the commit behind the checkout escalation spike last week
+    /kubit-blame why did trace t_abc fail — what changed?
+---
 ### /kubit-inspect
 Retrieves raw data from Kubit — traces, sessions, users, and events. The go-to
 skill for debugging failures, investigating unexpected behavior, or drilling into

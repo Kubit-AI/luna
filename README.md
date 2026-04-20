@@ -6,6 +6,7 @@ An agent plugin that adds `/kubit-*` skills to Claude Code and Cursor for workin
 
 | Command            | Purpose                                                          |
 | :----------------- | :--------------------------------------------------------------- |
+| `/kubit-blame`     | Find the code change behind a trace regression (downstream of report / inspect) |
 | `/kubit-connect`   | Authenticate and select the current org / workspace              |
 | `/kubit-help`      | List all kubit skills and how to use them                        |
 | `/kubit-inspect`   | Inspect users, sessions, traces, and events                      |
@@ -15,12 +16,10 @@ An agent plugin that adds `/kubit-*` skills to Claude Code and Cursor for workin
 ## Install
 
 ```bash
-npx @kubit-ai/agent-plugin --claude      # Claude Code
-npx @kubit-ai/agent-plugin --cursor      # Cursor
-npx @kubit-ai/agent-plugin --all         # both
+npx @kubit-ai/agent-plugin              # prompts for Claude Code, Cursor, or both
 ```
 
-Flags: `--global` (default, user-wide) or `--local` (current directory); `--uninstall` to remove; `--yes` for non-interactive.
+Flags: `--global` (default, user-wide) or `--local` (current directory); `--uninstall` to remove; `--yes` to skip the location prompt (runtime is always prompted).
 
 After install, restart the runtime and try `/kubit-help`.
 

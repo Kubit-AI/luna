@@ -37,6 +37,7 @@ records from a report, use /kubit-inspect.
    - **Multiple search matches** → Compact list with id, name, type. Ask user to pick.
    - **Modified report** → Return new id and note the original is unchanged.
    - **Zero matches** → Offer to broaden search or create.
+   - **Errors / regressions visible in the report** → After presenting the results, add a one-line natural-language suggestion: "If you want to find the code change behind this, try /kubit-blame." Do not run /kubit-blame yourself — let the user decide.
    - **Report data returned + export URL** → Spawn kubit-analyst on the full dataset (see below).
    - **Report data returned + no export URL** → Present MCP summary. Add a note: "This summary is based on the MCP's limited sample — CSV export was not available for full-dataset analysis."
    - Relay any MCP clarification questions verbatim.
@@ -59,6 +60,7 @@ records from a report, use /kubit-inspect.
 - Omit `limit` from the MCP call for create and modify operations
 - Never create multiple reports in one turn without confirming first
 - Relay MCP clarification questions verbatim rather than guessing
+- When the report surfaces errors, escalations, sentiment drift, or a regression, suggest `/kubit-blame` as a next step — but never invoke it automatically.
 
 ## Error Handling
 
