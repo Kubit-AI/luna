@@ -8,20 +8,23 @@ const readline = require('readline');
 
 const PKG_ROOT = path.resolve(__dirname, '..');
 
+// Explicit allowlist of agents that ship. Entries whose source file doesn't
+// exist under agents/ yet are silently skipped (see the existsSync guards in
+// installClaude/installCursor) — this lets the allowlist grow ahead of the
+// files landing.
+const SHIPPED_AGENTS = ['kubit-analyst', 'kubit-blame-mapper', 'kubit-blame-correlator'];
+
 // Explicit allowlist of skills that ship. Source folders under `skills/` not
 // listed here stay in the repo but are not installed. Keep this in sync with
 // README.md, skills/help/SKILL.md, CHANGELOG.md, and CLAUDE.md.
-const SHIPPED_SKILLS = ['connect', 'help', 'inspect', 'report', 'update'];
+const SHIPPED_SKILLS = ['blame', 'connect', 'help', 'inspect', 'report', 'update'];
 
 const HELP = `kubit-agent-plugin — install the Kubit agent plugin into Claude Code and/or Cursor
 
 Usage:
   npx @kubit-ai/agent-plugin [options]
 
-Runtime (pick one or more; prompted if omitted):
-  --claude               Install for Claude Code
-  --cursor               Install for Cursor
-  --all                  Install for both
+The runtime (Claude Code, Cursor, or both) is always chosen interactively.
 
 Location:
   -g, --global           (default) install to user config dir
@@ -38,9 +41,6 @@ Management:
 
 function parseArgs(argv) {
   const args = {
-    claude: false,
-    cursor: false,
-    all: false,
     global: false,
     local: false,
     uninstall: false,
@@ -51,9 +51,6 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
-      case '--claude': args.claude = true; break;
-      case '--cursor': args.cursor = true; break;
-      case '--all': args.all = true; break;
       case '-g': case '--global': args.global = true; break;
       case '-l': case '--local': args.local = true; break;
       case '-u': case '--uninstall': args.uninstall = true; break;
@@ -293,7 +290,9 @@ async function installClaude(args) {
   for (const name of skillNames) {
     rmIfExists(path.join(skillsDir, `kubit-${name}`));
   }
-  rmIfExists(path.join(agentsDir, 'kubit-analyst.md'));
+  for (const name of SHIPPED_AGENTS) {
+    rmIfExists(path.join(agentsDir, `${name}.md`));
+  }
   rmIfExists(metaDir);
 
   const ctx = {
@@ -303,18 +302,30 @@ async function installClaude(args) {
   };
 
   for (const name of skillNames) {
-    const src = path.join(srcSkillsDir, name, 'SKILL.md');
+    const srcDir = path.join(srcSkillsDir, name);
+    const src = path.join(srcDir, 'SKILL.md');
     if (!fs.existsSync(src)) continue;
-    const transformed = transformSkillForClaude(name, fs.readFileSync(src, 'utf8'), ctx);
     const destDir = path.join(skillsDir, `kubit-${name}`);
     fs.mkdirSync(destDir, { recursive: true });
+    // Copy every sibling file/dir next to SKILL.md (e.g. references/) verbatim.
+    for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+      if (entry.name === 'SKILL.md') continue;
+      const srcEntry = path.join(srcDir, entry.name);
+      const destEntry = path.join(destDir, entry.name);
+      if (entry.isDirectory()) fs.cpSync(srcEntry, destEntry, { recursive: true });
+      else fs.copyFileSync(srcEntry, destEntry);
+    }
+    // SKILL.md gets the frontmatter rewrite + marker substitution.
+    const transformed = transformSkillForClaude(name, fs.readFileSync(src, 'utf8'), ctx);
     fs.writeFileSync(path.join(destDir, 'SKILL.md'), transformed);
   }
 
-  // Agent: copy verbatim (no cross-ref rewrites needed).
-  const agentSrc = path.join(PKG_ROOT, 'agents', 'kubit-analyst.md');
-  if (fs.existsSync(agentSrc)) {
-    fs.copyFileSync(agentSrc, path.join(agentsDir, 'kubit-analyst.md'));
+  // Agents: copy verbatim (no cross-ref rewrites needed).
+  for (const name of SHIPPED_AGENTS) {
+    const agentSrc = path.join(PKG_ROOT, 'agents', `${name}.md`);
+    if (fs.existsSync(agentSrc)) {
+      fs.copyFileSync(agentSrc, path.join(agentsDir, `${name}.md`));
+    }
   }
 
   // MCP: merge into user or project config.
@@ -342,7 +353,9 @@ function uninstallClaude(args) {
       }
     }
   }
-  rmIfExists(path.join(agentsDir, 'kubit-analyst.md'));
+  for (const name of SHIPPED_AGENTS) {
+    rmIfExists(path.join(agentsDir, `${name}.md`));
+  }
   rmIfExists(metaDir);
   mcpRemoveKubit(mcpPath);
   log(`[claude-code] removed ${removed} skill(s), agent, metadata, and mcpServers.kubit entry`);
@@ -386,7 +399,8 @@ function transformAgentForCursor(agentMd) {
   const { frontmatter, body } = parseFrontmatter(agentMd);
   const fm = frontmatter || {};
   const desc = (fm.description || '').replace(/\s+/g, ' ').trim();
-  const newFm = { name: fm.name || 'kubit-analyst', description: desc };
+  if (!fm.name) fatal(`agent file missing 'name' frontmatter field`);
+  const newFm = { name: fm.name, description: desc };
   return writeFrontmatter(newFm, body);
 }
 
@@ -418,7 +432,9 @@ async function installCursor(args) {
   for (const name of skillNames) {
     rmIfExists(path.join(skillsDir, `kubit-${name}`));
   }
-  rmIfExists(path.join(agentsDir, 'kubit-analyst.md'));
+  for (const name of SHIPPED_AGENTS) {
+    rmIfExists(path.join(agentsDir, `${name}.md`));
+  }
   rmIfExists(metaDir);
 
   const ctx = {
@@ -428,19 +444,33 @@ async function installCursor(args) {
   };
 
   for (const name of skillNames) {
-    const src = path.join(srcSkillsDir, name, 'SKILL.md');
+    const srcDir = path.join(srcSkillsDir, name);
+    const src = path.join(srcDir, 'SKILL.md');
     if (!fs.existsSync(src)) continue;
-    const transformed = transformSkillForCursor(name, fs.readFileSync(src, 'utf8'), ctx);
     const destDir = path.join(skillsDir, `kubit-${name}`);
     fs.mkdirSync(destDir, { recursive: true });
+    // Copy every sibling file/dir next to SKILL.md (e.g. references/) verbatim.
+    for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+      if (entry.name === 'SKILL.md') continue;
+      const srcEntry = path.join(srcDir, entry.name);
+      const destEntry = path.join(destDir, entry.name);
+      if (entry.isDirectory()) fs.cpSync(srcEntry, destEntry, { recursive: true });
+      else fs.copyFileSync(srcEntry, destEntry);
+    }
+    // SKILL.md gets the frontmatter rewrite + marker substitution.
+    const transformed = transformSkillForCursor(name, fs.readFileSync(src, 'utf8'), ctx);
     fs.writeFileSync(path.join(destDir, 'SKILL.md'), transformed);
   }
 
-  // Agent: install kubit-analyst as a Cursor subagent.
-  const agentSrc = path.join(PKG_ROOT, 'agents', 'kubit-analyst.md');
-  if (fs.existsSync(agentSrc)) {
-    const transformed = transformAgentForCursor(fs.readFileSync(agentSrc, 'utf8'));
-    fs.writeFileSync(path.join(agentsDir, 'kubit-analyst.md'), transformed);
+  // Agents: install each allowlisted agent as a Cursor subagent.
+  let agentsInstalled = 0;
+  for (const name of SHIPPED_AGENTS) {
+    const agentSrc = path.join(PKG_ROOT, 'agents', `${name}.md`);
+    if (fs.existsSync(agentSrc)) {
+      const transformed = transformAgentForCursor(fs.readFileSync(agentSrc, 'utf8'));
+      fs.writeFileSync(path.join(agentsDir, `${name}.md`), transformed);
+      agentsInstalled++;
+    }
   }
 
   // MCP: merge into ~/.cursor/mcp.json
@@ -450,7 +480,7 @@ async function installCursor(args) {
   writeVersionFile(metaDir, version);
   writeChangelogFile(metaDir);
 
-  log(`[cursor] installed ${skillNames.length} skill(s) + 1 subagent. Restart Cursor, then try /kubit-help`);
+  log(`[cursor] installed ${skillNames.length} skill(s) + ${agentsInstalled} subagent(s). Restart Cursor, then try /kubit-help`);
 }
 
 function uninstallCursor(args) {
@@ -468,7 +498,9 @@ function uninstallCursor(args) {
       }
     }
   }
-  rmIfExists(path.join(agentsDir, 'kubit-analyst.md'));
+  for (const name of SHIPPED_AGENTS) {
+    rmIfExists(path.join(agentsDir, `${name}.md`));
+  }
   rmIfExists(metaDir);
   mcpRemoveKubit(mcpPath);
   log(`[cursor] removed ${removed} skill(s), subagent, metadata, and mcpServers.kubit entry`);
@@ -480,20 +512,13 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { process.stdout.write(HELP); return; }
 
-  // Resolve runtimes
-  let runtimes = [];
-  if (args.all || (args.claude && args.cursor)) runtimes = ['claude', 'cursor'];
-  else if (args.claude) runtimes = ['claude'];
-  else if (args.cursor) runtimes = ['cursor'];
-  else if (args.yes) runtimes = ['claude']; // non-interactive default
-  else {
-    const idx = await promptChoice('Which runtime(s) to install?', [
-      'Claude Code',
-      'Cursor',
-      'Both',
-    ], 0);
-    runtimes = [['claude'], ['cursor'], ['claude', 'cursor']][idx];
-  }
+  // Runtime is always chosen interactively — no flag shortcut.
+  const runtimeIdx = await promptChoice('Which runtime(s) to install?', [
+    'Claude Code',
+    'Cursor',
+    'Both',
+  ], 0);
+  const runtimes = [['claude'], ['cursor'], ['claude', 'cursor']][runtimeIdx];
 
   // Resolve location
   if (!args.global && !args.local) {
