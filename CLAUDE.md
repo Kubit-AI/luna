@@ -31,17 +31,16 @@ luna/
 
 Each skill is `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`) defining the interactive process.
 
-`bin/install.js` has a `SHIPPED_SKILLS` allowlist that controls which source folders under `skills/` actually get installed. Currently ships: `connect`, `help`, `inspect`, `report`, `update`. Source folders not on the allowlist (e.g. `blame`, `dataset`, `workflows`, `integrate`) stay in the repo for future iteration but are not installed into Claude Code or Cursor.
+`bin/install.js` has a `SHIPPED_SKILLS` allowlist that controls which source folders under `skills/` actually get installed. Currently ships: `blame`, `connect`, `help`, `inspect`, `integrate`, `report`, `update`. Source folders not on the allowlist (e.g. `dataset`, `workflows`) stay in the repo for future iteration but are not installed into Claude Code or Cursor.
 
 ### Why each unshipped skill is on hold
 
-- **`blame`, `dataset`** — scope not yet firm. Re-evaluate once the MCP's blame and dataset endpoints stabilize.
-- **`workflows`** — its value is chaining `blame` + `dataset` + `inspect` + `report`. Ship alongside `blame` and `dataset`, not before.
-- **`integrate`** — body is written (detect tracing framework, emit OTel wiring to Kubit) but still dogfooding against real repos before shipping. See the per-framework checklist in `skills/integrate/SKILL.md` §Gotchas.
+- **`dataset`** — scope not yet firm. Re-evaluate once the MCP's dataset endpoints stabilize.
+- **`workflows`** — its value is chaining `blame` + `dataset` + `inspect` + `report`. Ship alongside `dataset`, not before.
 
 When shipping a new skill, add it to `SHIPPED_SKILLS` and also update the skill table in `README.md` and the listing in `skills/help/SKILL.md` so they stay in sync.
 
-The `update` skill uses three template markers — `{{KUBIT_RUNTIME}}`, `{{KUBIT_CONFIG_DIR}}`, `{{KUBIT_SCOPE}}` — that `bin/install.js` substitutes at install time. The substitution pass runs on every skill body but is a no-op on skills that don't use these markers.
+`bin/install.js` substitutes four template markers in every skill body at install time: `{{KUBIT_RUNTIME}}`, `{{KUBIT_CONFIG_DIR}}`, `{{KUBIT_SCOPE}}`, and `{{KUBIT_EXPORT_ENDPOINT}}`. The pass is a no-op on skills that don't reference these markers.
 
 ## Versioning
 
@@ -60,7 +59,17 @@ Keep these limits in mind when editing skill copy so the instructions still work
 
 ## MCP
 
-`.mcp.json` auto-wires the Kubit MCP server at `https://agent-int.kubit.ai/mcp` (standard OAuth — browser sign-in on first use). Skills calling MCP tools can assume it's configured.
+Kubit MCP server is wired via OAuth (browser sign-in on first use); skills can assume it's configured. Dev (`.mcp.json` at repo root → `agent-int.kubit.ai/mcp`) is used only for project-scope sessions inside this repo and does **not** ship. Published installs get the URL constructed by `bin/install.js#mcpMerge()` from `FLAVOR.mcpUrl`. To change either URL, edit `PROD_FLAVOR` in `bin/install.js` or `scripts/dev-flavor.js` — never re-add `.mcp.json` to `package.json#files`.
+
+## Publish hygiene
+
+End-user tarballs must not leak internal infrastructure. Rules:
+
+- **One source of prod URLs.** Only `bin/install.js#PROD_FLAVOR` holds shipped endpoints. Reference via `FLAVOR.exportEndpoint` / `FLAVOR.mcpUrl`; never hardcode elsewhere.
+- **Dev URLs are never in shipped files.** `scripts/dev-flavor.js` carries them; `resolveFlavor()` tries to `require` it → present (source) picks dev, absent (tarball) falls back to `PROD_FLAVOR`. `KUBIT_EXPORT_ENDPOINT` still overrides either.
+- **Allowlist, not denylist.** `package.json#files` is authoritative; `.npmignore` is belt-and-braces. Keep out: internal hostnames (`*-dev.*`, `*-int.*`), dev tooling (`scripts/`, `test/`, `docs/`, `DEVELOPMENT.md`, `CLAUDE.md`), editor state (`.claude/`, `.cursor/`, `.idea/`), and the source-tree `.mcp.json`.
+- **CHANGELOG is shipped.** Every bullet answers "what changed for me?", never "what internal process produced this?". Ban: internal release status (`in dogfood`, `not yet on ship allowlist`), refactor metrics (`N-item list consolidated`, `updated in lockstep`), internal vocabulary (`env-only tier`, ticket IDs), internal hostnames. Never rewrite released history; redact only the minimum.
+- **Audit before publish.** `npm pack && tar xzf *.tgz -C /tmp/kpack && grep -rniE 'kubit-ingest-dev|agent-int\.kubit|dogfood|in lockstep|env-only' /tmp/kpack/package/` — expect zero matches.
 
 ## Commit Convention
 

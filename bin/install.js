@@ -8,13 +8,33 @@ const readline = require('readline');
 
 const PKG_ROOT = path.resolve(__dirname, '..');
 
-// Kubit token endpoint stamped into /kubit-integrate adapter snippets. The
-// emitted bootstrap files pass this URL straight to the SDK's `token_endpoint`
-// parameter. Override at install time via `KUBIT_EXPORT_ENDPOINT=...` for
-// int vs prod.
-const DEFAULT_KUBIT_EXPORT_ENDPOINT = 'https://kubit-ingest-dev.kubit.ai/token';
+// Production endpoints — the only flavor baked into the published tarball,
+// and therefore the only URLs visible to anyone unpacking the npm package.
+// Dev endpoints live in scripts/dev-flavor.js, which is NOT in
+// package.json#files and so never ships. When the repo is cloned locally
+// that file is present and resolveFlavor() downgrades the install to dev;
+// when `npx @kubit-ai/agent-plugin` runs from the tarball, it's absent and
+// PROD_FLAVOR wins. `KUBIT_EXPORT_ENDPOINT=...` still overrides the
+// resolved export endpoint — used for internal testing against custom hosts.
+const PROD_FLAVOR = {
+  exportEndpoint: 'https://kubit-ingest.kubit.ai/token',
+  mcpUrl: 'https://agent.kubit.ai/mcp',
+};
+
+function resolveFlavor() {
+  try {
+    // eslint-disable-next-line global-require
+    const devOverride = require('../scripts/dev-flavor.js');
+    if (devOverride && devOverride.exportEndpoint && devOverride.mcpUrl) {
+      return devOverride;
+    }
+  } catch { /* no dev-flavor module — running from a published tarball */ }
+  return PROD_FLAVOR;
+}
+
+const FLAVOR = resolveFlavor();
 const KUBIT_EXPORT_ENDPOINT =
-  process.env.KUBIT_EXPORT_ENDPOINT || DEFAULT_KUBIT_EXPORT_ENDPOINT;
+  process.env.KUBIT_EXPORT_ENDPOINT || FLAVOR.exportEndpoint;
 
 // Explicit allowlist of agents that ship. Entries whose source file doesn't
 // exist under agents/ yet are silently skipped (see the existsSync guards in
@@ -258,9 +278,9 @@ function writeFrontmatter(fm, body) {
 // Merge our `.mcp.json` content into `targetMcpPath`, under key `kubit`.
 // Preserves other mcpServers entries. Idempotent.
 function mcpMerge(targetMcpPath) {
-  const ours = readJson(path.join(PKG_ROOT, '.mcp.json'));
-  const ourEntry = ours.mcpServers && ours.mcpServers.kubit;
-  if (!ourEntry) fatal('bundled .mcp.json is missing mcpServers.kubit — package is corrupt');
+  // Constructed from the resolved flavor — the repo's source-tree `.mcp.json`
+  // is not shipped, so we can't (and don't need to) read it at install time.
+  const ourEntry = { type: 'http', url: FLAVOR.mcpUrl };
 
   let existing = { mcpServers: {} };
   if (fs.existsSync(targetMcpPath)) {
@@ -617,4 +637,4 @@ if (require.main === module) {
   main().catch((err) => fatal(err.stack || err.message || String(err)));
 }
 
-module.exports = { substituteKubitMarkers, copySkillSibling };
+module.exports = { substituteKubitMarkers, copySkillSibling, PROD_FLAVOR, resolveFlavor };
