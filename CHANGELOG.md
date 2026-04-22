@@ -4,6 +4,48 @@ All notable changes to `@kubit-ai/agent-plugin` are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- `/kubit-integrate` now emits bootstrap files that wire the first-party
+  Kubit SDKs (`kubit-otel` on PyPI, `@kubit-ai/otel` on npm) instead of
+  raw OTLP/HTTP exporter code. Ingestion moves from OTLP POSTs to the
+  SDK's token-exchange + Kinesis transport. All 8 framework adapters
+  (braintrust, langfuse, langsmith, logfire, openai-agents,
+  openinference, openllmetry, otel-genai) were updated in lockstep;
+  Langfuse's `env-only` tier was dropped in favor of the shared
+  bootstrap-file pattern.
+- `/kubit-integrate` renames the env vars it writes to the user's
+  `.env`: `KUBIT_OTEL_API_KEY` → `KUBIT_EXPORT_API_KEY` and
+  `KUBIT_OTEL_ENDPOINT` → `KUBIT_EXPORT_ENDPOINT`. The endpoint value is
+  now a full token-endpoint URL (e.g.
+  `https://kubit-ingest-dev.kubit.ai/token`), not an OTLP base with
+  `/v1/traces` appended.
+- `bin/install.js` template marker renamed `{{KUBIT_OTEL_ENDPOINT}}` →
+  `{{KUBIT_EXPORT_ENDPOINT}}`. Install-time override env var renamed
+  accordingly; default stamped value updated to the SDK's token
+  endpoint shape.
+- `/kubit-integrate` (still in dogfood, not yet on the ship allowlist)
+  becomes the single turn-on-Kubit flow: ensures a Kubit session (via
+  `/kubit-connect` when needed), creates a fresh workspace with an
+  interactive name + timezone prompt, mints the ingestion key via
+  `workspace_mint_key`, and writes `KUBIT_EXPORT_API_KEY` to the repo's
+  `.env` (skipping the write and printing `export …` instead when
+  `.env` is not gitignored) before emitting the SDK bootstrap file.
+- `/kubit-connect` no longer creates workspaces. The `create-workspace`
+  action, Example 3, When-to-Use bullet, and supporting rule were
+  removed; the skill now points users at `/kubit-integrate` for
+  onboarding.
+- `/kubit-help` drops the `create workspace` example from the
+  `/kubit-connect` description to match the shrunk scope.
+- `/kubit-integrate` simplifications: dropped the optional context7
+  refresh step, consolidated the 17-item error-handling list into 6
+  phase-grouped buckets, and replaced the fixed `.env` write target
+  with a detection heuristic that picks `.env.local` vs `.env` based
+  on existing files and framework manifests (still gitignore-gated,
+  same print-export fallback).
+
 ## [0.0.3] - 2026-04-20
 
 ### Added

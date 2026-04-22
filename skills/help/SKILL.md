@@ -20,12 +20,11 @@ task. No session required — works before /kubit-connect is complete.
 ## Skills
 
 ### /kubit-connect
-Sets up your Kubit session. Handles org and workspace selection, switching,
-and creating new workspaces. Required before any other skill — provides the
-SESSION token everything else depends on.
+Sets up your Kubit session. Handles org and workspace selection and
+switching. Required before any other skill — provides the SESSION
+token everything else depends on.
     /kubit-connect
     /kubit-connect switch workspace staging
-    /kubit-connect create workspace "q2-experiments"
 ---
 ### /kubit-blame
 Finds the code change behind a trace regression — errors, sentiment drift,

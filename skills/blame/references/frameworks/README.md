@@ -10,12 +10,14 @@ part of its input.
 Add a new adapter when users want `/kubit-blame` to work against a tracing
 framework not currently covered. The launch set is:
 
+- `braintrust.md` — Braintrust (Python + JS/TS official SDKs)
 - `langfuse.md` — Langfuse (Python + JS/TS official SDKs)
 - `langsmith.md` — LangSmith / LangChain
 - `logfire.md` — Pydantic Logfire (Python primary; TS thinner)
 - `openai-agents.md` — OpenAI Agents SDK (Python + JS/TS)
 - `openinference.md` — OpenInference / Arize Phoenix (Python + JS/TS)
 - `openllmetry.md` — OpenLLMetry / Traceloop (Python + TS)
+- `vercel-ai.md` — Vercel AI SDK (TypeScript only)
 - `otel-genai.md` — OpenTelemetry GenAI semantic conventions
 
 ## Required sections

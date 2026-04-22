@@ -1,6 +1,6 @@
 ---
 name: connect
-description: Use this skill when starting a Kubit session, switching organization or workspace, or creating a new workspace.
+description: Use this skill when starting a Kubit session or switching organization or workspace. To create a new workspace, use `/kubit-integrate`.
 ---
 
 # /kubit-connect
@@ -17,19 +17,22 @@ You will get a SESSION: parameter as part of the `init` and `switch` response. T
 This skill should be invoked when:
 - The user runs /kubit-connect for the first time
 - The user wants to switch organization or workspace
-- The user wants to create a new workspace
 - Another Kubit skill needs to be called and you don't have SESSION on the context.
+
+Workspace **creation** is not in scope here — route the user to
+`/kubit-integrate`, which owns the interactive onboarding flow
+(name, timezone, `workspace_create`, key mint, `.env` write).
 
 ## Inputs
 
 - `organization` — Kubit organization name or id (optional, prompted if needed)
 - `workspace` — workspace name or ID (optional, prompted if needed)
-- `action` - one of switch | create-workspace (opitonal, inferred from wording)
+- `action` — `switch` (optional, inferred from wording)
 
 ## Pre-flight: check for updates
 
 Run this once at the start of the first-time init flow (Example 1). Skip for
-switch / create-workspace.
+switch.
 
 ```bash
 CONFIG_DIR="{{KUBIT_CONFIG_DIR}}"
@@ -54,7 +57,6 @@ Always continue to `init` regardless — this notice is informational only.
 - Do not persistently store the session token, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
 - Refresh session after 1 hour idle (not a security timeout — just re-pins the workspace)
 - orgId and workspaceId must always be passed as a pair to `switch`
-- After creating a workspace, you get a session id back and can continue working into it immediately
 
 ## Examples
 
@@ -74,16 +76,13 @@ Call the `switch` MCP call with the appropriate org and workspace IDs. The user 
 or names.
 Note that orgId and workspaceId come in pairs - you need to pass both when switching org/workspace.
 
-**Example 3 — Create a new workspace:**
+**Example 3 — User asks to create a workspace:**
 Input: /kubit-connect create workspace "workspace name"
 
-Call: `workspace_create { name: "workspace name", session: <sessionId>, description: <optional>, timezone: <optional>}`
-
-Timezone must be a valid timezone sting, if provided (e.g. "UTC", "America/Los_Angeles", etc). 
-
-Prompt the user to select review all input params and give them ability to adjust, before proceeding.
-
-This task can take 30 seconds or more, please indicate to the user to be patient.
+Do not call `workspace_create` from this skill. Point the user at
+`/kubit-integrate`, which runs the full onboarding flow (name,
+timezone, workspace creation, API key mint, `.env` write, and the
+tracing-exporter wiring). Exit 0 without touching the MCP.
 
 
 ## Gotchas

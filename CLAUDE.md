@@ -37,7 +37,7 @@ Each skill is `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `descripti
 
 - **`blame`, `dataset`** — scope not yet firm. Re-evaluate once the MCP's blame and dataset endpoints stabilize.
 - **`workflows`** — its value is chaining `blame` + `dataset` + `inspect` + `report`. Ship alongside `blame` and `dataset`, not before.
-- **`integrate`** — placeholder folder added on `master` for future work. No body yet.
+- **`integrate`** — body is written (detect tracing framework, emit OTel wiring to Kubit) but still dogfooding against real repos before shipping. See the per-framework checklist in `skills/integrate/SKILL.md` §Gotchas.
 
 When shipping a new skill, add it to `SHIPPED_SKILLS` and also update the skill table in `README.md` and the listing in `skills/help/SKILL.md` so they stay in sync.
 

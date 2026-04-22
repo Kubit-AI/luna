@@ -10,6 +10,11 @@ node_modules/
 dist/
 *.tgz
 
+# Local installer output when running `npx @kubit-ai/agent-plugin -l` from
+# this repo (bin/install.js -l writes into cwd/.claude and cwd/.cursor).
+.claude/
+.cursor/
+
 # Compiled Java class files
 *.class
 

@@ -9,9 +9,9 @@ description: Use this skill when the user wants to find the code change responsi
 
 This skill is "git blame for agents". Given trace data flagged as problematic,
 it finds the recent commit(s) most likely responsible. It detects which
-tracing framework your repo uses (Langfuse, LangSmith, Pydantic Logfire,
-OpenAI Agents SDK, OpenInference / Arize Phoenix, OpenLLMetry / Traceloop,
-or OpenTelemetry GenAI), maps trace identifiers to concrete code locations with
+tracing framework your repo uses (Braintrust, Langfuse, LangSmith, Pydantic
+Logfire, OpenAI Agents SDK, OpenInference / Arize Phoenix, OpenLLMetry /
+Traceloop, Vercel AI SDK, or OpenTelemetry GenAI), maps trace identifiers to concrete code locations with
 user confirmation for anything ambiguous, then runs `git log` over those
 locations and ranks suspects by temporal proximity, coverage, and diff
 surface — each with a short behavioral-change summary.
@@ -54,12 +54,14 @@ surface — each with a short behavioral-change summary.
    - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/<framework>.md`
 
    Adapters to check (section 1 of each for the grep patterns):
+   - `braintrust.md`
    - `langfuse.md`
    - `langsmith.md`
    - `logfire.md`
    - `openai-agents.md`
    - `openinference.md`
    - `openllmetry.md`
+   - `vercel-ai.md`
    - `otel-genai.md`
 
    Check `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, and
