@@ -73,6 +73,7 @@ records from a report, use /kubit-inspect.
 6. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
 
 ## Rules
+- **Always render the report as `[<display>](<reportUrl>)`.** Whenever the MCP response contains `display` and `reportUrl` fields, present the report as a markdown link using `display` as the link text and `reportUrl` as the href. Never show the URL bare, and never present a report identifier without the link when both fields are available. Applies to every branch that surfaces a report — open, create, modify, and each row of a multi-match list.
 - Always search before creating when intent is ambiguous
 - Modifications always create a new report id — the original is always preserved
 - Omit `limit` from the MCP call for create and modify operations
