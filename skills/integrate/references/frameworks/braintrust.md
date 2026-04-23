@@ -44,14 +44,26 @@ explicit `y/N` opt-in before writing any file. Default is no.
 >    - TypeScript: `braintrust >= 1.0.0` with `@braintrust/otel >= 0.1.0`
 >    Skip this step if your repo is the only producer/consumer.
 >
-> 2. **Existing TracerProvider.** If your app already registers a
->    global OTel `TracerProvider` (for example, an OpenInference or
->    OpenLLMetry setup), the bootstrap file will attach to it rather
->    than replace it — but it will add `BraintrustSpanProcessor` to
->    that provider, which means **all** OTel spans in the process —
->    not just Braintrust ones — will start flowing into Braintrust.
->    If that is undesirable, configure `BraintrustSpanProcessor` with
->    a `customFilter` / `custom_filter` after the file is written.
+> 2. **Existing TracerProvider.**
+>    - *Python.* If your app already registers a global OTel
+>      `TracerProvider` (for example, an OpenInference or OpenLLMetry
+>      setup), the bootstrap file attaches to it rather than replace
+>      it — but it adds `BraintrustSpanProcessor` to that provider,
+>      which means **all** OTel spans in the process — not just
+>      Braintrust ones — start flowing into Braintrust. If that is
+>      undesirable, configure `BraintrustSpanProcessor` with a
+>      `custom_filter` after the file is written.
+>    - *TypeScript (OTel JS SDK v2).* The bootstrap file constructs
+>      its own `NodeSDK` with both `BraintrustSpanProcessor` and
+>      `KubitSpanProcessor` in `spanProcessors: [...]` — it cannot
+>      attach to an already-running provider (v2 removed
+>      `addSpanProcessor`). If your app already constructs its own
+>      `NodeSDK` / `NodeTracerProvider`, the skill must merge both
+>      processors into that existing `spanProcessors` array instead
+>      of writing the standalone bootstrap, otherwise two providers
+>      compete for the global registration. Configure
+>      `BraintrustSpanProcessor` with a `customFilter` if you do
+>      not want non-Braintrust spans flowing into Braintrust.
 >
 > 3. **Bootstrap file does not enable compat mode for you.** It
 >    treats `BRAINTRUST_OTEL_COMPAT=true` in the environment as your
@@ -227,7 +239,10 @@ Required deps:
 - TypeScript: `npm install @braintrust/otel @kubit-ai/otel @opentelemetry/sdk-node`
   (the existing `braintrust` dep — the signal that triggered detection
   in §1 — is left in place; this install only adds the Kubit-side
-  extras).
+  extras). `@kubit-ai/otel` requires
+  `@opentelemetry/sdk-trace-base >= 2.0.0` as a peer — pin
+  `@opentelemetry/sdk-node` and any `sdk-trace-*` / `resources` on
+  the same `^2.x` major.
 
 ## 5. Verification snippet
 

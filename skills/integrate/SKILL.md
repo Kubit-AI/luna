@@ -76,6 +76,39 @@ run.
    - ≥ 2 matches → list detections and ask the user to pick exactly one.
      Do not accept "all"; the user can re-run for a second framework.
 
+   **OTel JS SDK version gate (Node/TS path only).** Once a TS/Node
+   framework is picked, resolve the installed version of
+   `@opentelemetry/sdk-trace-base` (and `@opentelemetry/sdk-trace-node`
+   when present). **Resolve via the lockfile, not `package.json`** —
+   `sdk-trace-base` typically arrives transitively via
+   `@opentelemetry/sdk-node` or a framework's OTel extras and may not
+   appear in the consumer's `package.json#dependencies` at all.
+   Sources in order of precedence:
+   - `package-lock.json` (npm): walk `packages["node_modules/@opentelemetry/sdk-trace-base"].version`
+     (and the same for `sdk-trace-node`).
+   - `pnpm-lock.yaml` (pnpm): grep for the `/@opentelemetry/sdk-trace-base@<version>`
+     entries under `packages:`.
+   - `yarn.lock` (yarn classic + berry): grep the resolved block for
+     `"@opentelemetry/sdk-trace-base@..."`.
+   - `bun.lockb` / `bun.lock` (bun): run `bun pm ls @opentelemetry/sdk-trace-base`
+     and parse the resolved version.
+   - Only if no lockfile exists, fall back to `package.json` declared
+     ranges — and record the fallback in the error message so the
+     user knows the check was best-effort.
+
+   If either resolves to `< 2.0.0`, exit 0 with:
+
+   > `@kubit-ai/otel` requires `@opentelemetry/sdk-trace-base >= 2.0.0`.
+   > Detected `<version>`. Upgrade your OTel JS SDK (and
+   > `@opentelemetry/sdk-trace-node` / `resources`) and re-run
+   > `/kubit-integrate`.
+
+   No session touch, no workspace, no writes — same terminal shape as
+   the "no framework detected" exit. The Kubit Node SDK's transformer
+   reads v2-only fields (`parentSpanContext.spanId`) and `configure()`
+   uses v2-only APIs (`resourceFromAttributes()`, constructor-time
+   `spanProcessors`), so there is no v1-compatible code path to emit.
+
 3. **Adapter prerequisite gate.** If the picked adapter's §2 contains a
    `### Prerequisites` subsection, print that subsection verbatim and
    require an explicit `y/N` opt-in. Default is no. If the user declines
@@ -236,8 +269,12 @@ run.
    quote style) as adaptable — match the surrounding file's
    conventions.
 
-   **`configure()` vs `attach()` in adapter §3 snippets.** As of
-   kubit-otel 0.4.0 the two public entry points behave differently:
+   **`configure()` vs `attach()` in adapter §3 snippets.** The two
+   public entry points behave differently, and the Node and Python
+   SDKs have diverged on this — read the sub-paragraph for the
+   language of the snippet you are about to emit.
+
+   *Python.* Both helpers exist:
    - `configure(...)` creates a fresh `TracerProvider` and registers
      it as the global if none exists, or attaches `KubitSpanProcessor`
      to the existing real provider (merging resource attrs) if one is
@@ -251,6 +288,23 @@ run.
      registration if kubit-otel claimed the global first (Logfire
      standalone form, OpenInference/Phoenix, OpenLLMetry/Traceloop).
      The raise is the loud-failure guardrail for misordering.
+
+   *TypeScript / Node (OTel JS SDK v2).* `attach()` does not exist —
+   v2 removed `addSpanProcessor` from `BasicTracerProvider` /
+   `NodeTracerProvider`, so there is no public way to add a processor
+   to an already-running provider. Only `configure()` is exported, and
+   it always constructs a fresh `NodeTracerProvider` with
+   `spanProcessors: [KubitSpanProcessor]` and `register()`s it. The
+   decision rule becomes:
+   - *Provider-owning adapter with no host framework provider*
+     (langsmith, otel-genai bare, vercel-ai bare, openai-agents) →
+     emit `configure({ apiKey })`; it owns the registration.
+   - *Host framework owns the provider* (logfire, openinference,
+     openllmetry, braintrust gated, or any repo that already
+     constructs its own `NodeTracerProvider` / `NodeSDK`) → do NOT
+     emit `configure()`. Merge `new KubitSpanProcessor({ apiKey })`
+     into the host's `spanProcessors: [...]` array at the
+     construction site — v2 requires processors at construction time.
 
    Emit whichever helper the picked adapter's §3 snippet uses — do
    not substitute one for the other.
@@ -288,6 +342,20 @@ run.
        **plus an entrypoint edit**. Writing the file alone is not
        enough; the user must never be left to paste the import in
        manually as the default outcome.
+
+       **TS host-framework adapters are merge-only on Node.** For
+       adapters whose TS §3 has no standalone form — logfire,
+       openinference, openllmetry, and braintrust's gated TS path —
+       `@kubit-ai/otel` must NOT be registered as a second, parallel
+       `NodeTracerProvider`; it would clobber the host framework's
+       registration. When no merge site is found for these TS
+       adapters, skip the standalone-file write entirely and fall
+       through to the degraded close-out: print the adapter's §3 TS
+       merge-form snippet verbatim as a reference and instruct the
+       user to stand up a single `NodeSDK` / `NodeTracerProvider` that
+       carries both the host framework's processor and
+       `KubitSpanProcessor` in `spanProcessors: [...]`. The env-file
+       write and the dep install still stand.
        - Language: detect from manifests (`pyproject.toml` /
          `requirements.txt` → Python; `package.json` → TS). If both
          are present, prefer the language of the matched framework's
@@ -361,7 +429,7 @@ run.
 
        Substitute the chosen env file name; use the fallback wording
        when the write was skipped.
-    2. A wiring line describing where Kubit landed. Three possible
+    2. A wiring line describing where Kubit landed. Four possible
        terminal states, determined by step 9:
        - *Merge path* → `Kubit wiring merged into <path>.`
        - *Standalone + entrypoint edit* →
@@ -373,9 +441,23 @@ run.
          or `from trip_planner import kubit_instrumentation`). This
          is the degraded path — only reached when the user declined
          the entrypoint edit or no entrypoint could be resolved.
+       - *TS host-framework, no merge site* (degraded) → print
+         *"No NodeSDK / NodeTracerProvider construction site found for
+         `<framework>`; @kubit-ai/otel cannot register a parallel
+         provider without clobbering `<framework>`'s registration.
+         Stand up a single NodeSDK that carries both processors using
+         the snippet below, then re-run verification."* followed by
+         the adapter's §3 TS merge-form snippet verbatim. Only
+         reached for logfire, openinference, openllmetry, and the
+         gated TS path of braintrust.
     3. The verification command from adapter §5, with the same token
        substitution applied (merge and entrypoint-edit paths: replace
        with `from <pkg> import …` or `./<merged-file>` as appropriate).
+       On the *TS host-framework, no merge site* terminal state, skip
+       the verification command — nothing has been wired yet; instead
+       append *"Run the verification command from the adapter's §5
+       once you've stood up the NodeSDK."* so the user knows where to
+       come back to.
 
     When a Python snippet was emitted (merged or standalone) **and
     it contains `service_name=`/`service_version=`/
@@ -384,9 +466,11 @@ run.
     command: *"Verify `service_name`, `service_version`, and
     `deployment.environment` in `<path>` before running the
     verification command."* Substitute `<path>` with the merge target
-    or the standalone bootstrap file. For `attach()` snippets
+    or the standalone bootstrap file. For Python `attach()` snippets
     (logfire / openinference / openllmetry standalone), omit this
-    line — the host framework owns the resource metadata.
+    line — the host framework owns the resource metadata. TS snippets
+    never contain Python-shaped service metadata, so this line does
+    not apply on the TS path.
 
     Do not run the verification command; it runs against the user's
     environment.
@@ -425,6 +509,22 @@ run.
   existing" branches never create a workspace. On any
   `workspace_create` or `switch` failure, surface the error and stop
   — no silent retry.
+- The Node path requires `@opentelemetry/sdk-trace-base >= 2.0.0`
+  (and `sdk-trace-node` / `resources` on the same major). On v1 the
+  skill exits with an upgrade message in step 2; it does not emit
+  v1-compatible code and does not carry any v1/v2 compatibility
+  shims.
+- `@kubit-ai/otel` is Node-only. Its export path depends on
+  `@aws-sdk/client-kinesis`, which cannot load in Edge / Workers /
+  browser runtimes. For any framework whose entrypoint straddles
+  runtimes (Next.js `instrumentation.ts`, Cloudflare Workers, Vercel
+  Edge, Deno), the skill must wire Kubit only into the Node runtime
+  — either by choosing `instrumentation.node.ts` over
+  `instrumentation.ts` (Next.js splits on file suffix when present),
+  or by gating the Kubit bootstrap import on
+  `process.env.NEXT_RUNTIME === 'nodejs'`. Never import
+  `@kubit-ai/otel` from code that can be evaluated in an Edge
+  runtime.
 
 ## Error Handling
 
@@ -434,6 +534,9 @@ messages are in the sub-bullets.
 1. **Detection-phase exits.** No session touch, no workspace, no writes.
    - No framework detected → print supported list; exit 0.
    - Multiple frameworks detected → user picks one; no "all" option.
+   - Picked a TS/Node framework but the consumer's
+     `@opentelemetry/sdk-trace-base` (or `sdk-trace-node`) resolves
+     to `< 2.0.0` → print the upgrade message from step 2 and exit 0.
    - Adapter file missing *or* `{{KUBIT_EXPORT_ENDPOINT}}` literal still
      present in an adapter body → fatal: *"Skill install is corrupt:
      re-run `npx @kubit-ai/agent-plugin`."*

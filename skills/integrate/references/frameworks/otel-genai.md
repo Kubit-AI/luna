@@ -55,14 +55,14 @@ configure({ apiKey: process.env.KUBIT_EXPORT_API_KEY! });
 ### Merge form — attach `KubitSpanProcessor` to the user's existing provider
 
 Used when §3a finds a wiring site (the user already owns a
-`TracerProvider`). Call `configure(...)` in the same module — it
-detects the existing real provider and attaches `KubitSpanProcessor`
-to it (merging in the supplied resource attributes), so there is no
-second provider and no parallel pipeline. `configure()` is safe to
-call before or after the user's provider construction in this
-adapter, because the user — not a framework — owns the registration.
+`TracerProvider`).
 
-Python:
+*Python.* Call `configure(...)` in the same module — it detects the
+existing real provider and attaches `KubitSpanProcessor` to it
+(merging in the supplied resource attributes), so there is no second
+provider and no parallel pipeline. `configure()` is safe to call
+before or after the user's provider construction here, because the
+user — not a framework — owns the registration.
 
 ```python
 # Add to the module that already constructs the TracerProvider.
@@ -78,18 +78,28 @@ configure(
 )
 ```
 
-TypeScript:
-
-```typescript
-// Add to the module that already constructs the TracerProvider / NodeSDK.
-import { configure } from "@kubit-ai/otel";
-
-configure({ apiKey: process.env.KUBIT_EXPORT_API_KEY! });
-```
-
 If the user's module holds a named provider variable, an explicit
 `provider.add_span_processor(KubitSpanProcessor(...))` on that
 variable is equivalent and may read more clearly in hand-built setups.
+
+*TypeScript (OTel JS SDK v2).* Merge the processor into the
+`spanProcessors: [...]` array at the user's provider construction
+site. Do NOT add a second `configure({ apiKey })` call — v2 does not
+support post-hoc `addSpanProcessor`, so `configure()` would register
+a parallel `NodeTracerProvider` and clobber the existing one.
+
+```typescript
+// Add to the module that already constructs the TracerProvider / NodeSDK.
+import { KubitSpanProcessor } from "@kubit-ai/otel";
+
+const sdk = new NodeSDK({
+  spanProcessors: [
+    // …existing processors stay first…,
+    new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY! }),
+  ],
+});
+sdk.start();
+```
 
 ## 3a. Integration-site signals
 
@@ -111,9 +121,12 @@ Python:
 
 TypeScript:
 
-- A module that constructs `new NodeSDK(` or `new NodeTracerProvider(`
-  / `new BasicTracerProvider(` from `@opentelemetry/sdk-*`. Merge the
-  Kubit `configure({ apiKey })` call into that same module.
+- A module that constructs `new NodeSDK({ spanProcessors: [...] })`
+  or `new NodeTracerProvider({ spanProcessors: [...] })` /
+  `new BasicTracerProvider({ spanProcessors: [...] })` from
+  `@opentelemetry/sdk-*`. Add
+  `new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY! })`
+  to the same `spanProcessors` array.
 
 If multiple files match, ask the user which one the agent's traces
 flow through.
@@ -129,7 +142,10 @@ in `src/index.ts` (or your entrypoint).
 Required deps:
 
 - Python: `pip install kubit-otel`
-- TypeScript: `npm install @kubit-ai/otel`
+- TypeScript: `npm install @kubit-ai/otel` (requires
+  `@opentelemetry/sdk-trace-base >= 2.0.0` as a peer — pin
+  `@opentelemetry/sdk-node` / `sdk-trace-base` / `sdk-trace-node` /
+  `resources` to the same `^2.x` major the project already uses).
 
 ## 5. Verification snippet
 

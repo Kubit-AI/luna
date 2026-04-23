@@ -73,12 +73,21 @@ Python:
 
 TypeScript:
 
-- A module that constructs `new NodeSDK(` or `new NodeTracerProvider(`
-  while also importing from `langsmith` or `langchain` / `@langchain/*`.
-  Merge the Kubit `configure({ apiKey })` call into that module.
+- A module that constructs `new NodeSDK({ spanProcessors: [...] })`
+  or `new NodeTracerProvider({ spanProcessors: [...] })` while also
+  importing from `langsmith` or `langchain` / `@langchain/*`. Add
+  `new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY! })`
+  to the same `spanProcessors` array — OTel JS SDK v2 requires
+  processors at construction time, so the standalone
+  `configure({ apiKey })` snippet is NOT a valid merge tool here
+  (it would register a parallel `NodeTracerProvider` and clobber
+  the existing registration).
 
 If no file matches (the common case — LangSmith users often rely on
 the native tracer only), fall back to the standalone bootstrap file.
+In that case `configure({ apiKey })` is correct: there is no
+existing provider to clobber, and `@kubit-ai/otel` becomes the one
+owner.
 
 ## 4. Wire-in instruction
 
@@ -92,7 +101,10 @@ attached to.
 Required deps:
 
 - Python: `pip install kubit-otel`
-- TypeScript: `npm install @kubit-ai/otel`
+- TypeScript: `npm install @kubit-ai/otel` (requires
+  `@opentelemetry/sdk-trace-base >= 2.0.0` as a peer — pin
+  `@opentelemetry/sdk-node` / `sdk-trace-base` / `sdk-trace-node` /
+  `resources` to the same `^2.x` major the project already uses).
 
 ## 5. Verification snippet
 
