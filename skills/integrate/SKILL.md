@@ -92,31 +92,67 @@ run.
    establish a session, exit 0 with *"No active Kubit session — re-run
    `/kubit-integrate` after `/kubit-connect`."* Do not write anything.
 
-5. **Workspace onboarding — always create a new workspace.**
-   - Prompt for **workspace name** (free-text; required). One workspace
-     per instrumented app is the expected shape, so a repo-descriptive
-     name is a good default suggestion.
-   - Prompt for **timezone**. Detect a default with a best-effort
-     one-liner (prefer
-     `node -e "process.stdout.write(Intl.DateTimeFormat().resolvedOptions().timeZone)"`;
-     fall back on macOS/Linux to
-     `readlink /etc/localtime 2>/dev/null | sed -n 's|.*/zoneinfo/||p'`;
-     fall back to `UTC`). Show the detected value and let the user press
-     enter to accept, or supply a valid IANA name (e.g.
-     `America/Los_Angeles`, `Europe/Berlin`).
-   - Show a single review line — `name=<value>, timezone=<value>` — and
-     ask for an explicit confirm before the MCP call. The user can edit
-     either input and re-review.
-   - Call `workspace_create { name, timezone, session }`. Warn the user
-     the call can take ~30 seconds. The response returns a session
-     pinned to the newly created workspace; use that session for the
-     next step.
+5. **Workspace selection.** The session from step 4 is already pinned
+   to a workspace (the user's current one) and carries the list of
+   other workspaces in the active org. Surface that context and let
+   the user pick one of three branches. Record the branch as
+   `workspace_action` ∈ {`used`, `switched`, `created`} for the
+   close-out in step 10.
+
+   - **Show current workspace and the org's other workspaces.** Print:
+     - Line 1: `Current Kubit workspace: "<name>" (org "<org-name>")`.
+     - Then, on following lines, the other workspaces in the active
+       org (the same list `/kubit-connect` uses), one per line —
+       `  - <name>` — under a heading `Other workspaces in "<org>":`.
+       If the current workspace is the only one, print instead
+       `No other workspaces in "<org>".` as a single line.
+
+   - **Prompt for action.** Present numbered options. Omit option 2
+     when there are no other workspaces:
+     1. Use current workspace.
+     2. Switch to an existing workspace in this org. *(omit when the
+        list is empty)*
+     3. Create a new workspace.
+
+     Default on empty input is option 1. Route on the user's pick.
+
+   - **Branch: use current** → keep the session as-is.
+     `workspace_action = used`. Skip to step 6.
+
+   - **Branch: switch to existing** →
+     - Ask the user to pick one of the already-listed workspaces by
+       number or name.
+     - Call `switch { orgId, workspaceId, session }` with the current
+       org id and the chosen workspace id. Replace the in-memory
+       session with the one returned by `switch`.
+       `workspace_action = switched`. Skip to step 6.
+
+   - **Branch: create new** →
+     - Prompt for **workspace name** (free-text; required). One
+       workspace per instrumented app is the expected shape, so a
+       repo-descriptive name is a good default suggestion.
+     - Prompt for **timezone**. Detect a default with a best-effort
+       one-liner (prefer
+       `node -e "process.stdout.write(Intl.DateTimeFormat().resolvedOptions().timeZone)"`;
+       fall back on macOS/Linux to
+       `readlink /etc/localtime 2>/dev/null | sed -n 's|.*/zoneinfo/||p'`;
+       fall back to `UTC`). Show the detected value and let the user
+       press enter to accept, or supply a valid IANA name (e.g.
+       `America/Los_Angeles`, `Europe/Berlin`).
+     - Show a single review line — `name=<value>, timezone=<value>` —
+       and ask for an explicit confirm before the MCP call. The user
+       can edit either input and re-review.
+     - Call `workspace_create { name, timezone, session }`. Warn the
+       user the call can take ~30 seconds. The response returns a
+       session pinned to the newly created workspace; adopt it.
+       `workspace_action = created`.
 
 6. **Mint the ingestion key.**
-   - Call `workspace_mint_key { session }` against the session returned
-     by `workspace_create`. This is the call that produces the value
-     `KUBIT_EXPORT_API_KEY` expects — `workspace_create` itself does not
-     return an ingestion key.
+   - Call `workspace_mint_key { session }` against whichever session
+     step 5 produced (the original session for the `used` branch, the
+     one returned by `switch` for `switched`, or the one returned by
+     `workspace_create` for `created`). This is the call that produces
+     the value `KUBIT_EXPORT_API_KEY` expects.
    - Hold the minted key in memory only. Never log it, never echo it
      back to the user. The only places it is allowed to land are the
      env-file write in step 7 or the fallback `export` line.
@@ -318,10 +354,13 @@ run.
        fallback.
 
 10. **Close-out.** Print exactly three blocks, in this order:
-    1. A single status line:
-       `Kubit workspace "<name>" created; API key written to <file>`
-       (substitute the chosen env file name; use the fallback wording
-       when the write was skipped).
+    1. A single status line, branched on step 5's `workspace_action`:
+       - `created`  → `Kubit workspace "<name>" created; API key written to <file>`
+       - `switched` → `Kubit workspace "<name>" selected; new API key written to <file>`
+       - `used`     → `Kubit workspace "<name>" selected; new API key written to <file>`
+
+       Substitute the chosen env file name; use the fallback wording
+       when the write was skipped.
     2. A wiring line describing where Kubit landed. Three possible
        terminal states, determined by step 9:
        - *Merge path* → `Kubit wiring merged into <path>.`
@@ -381,8 +420,11 @@ run.
   edit (with diff + approval) rather than printing prose that leaves
   the user to paste. Printed prose is a degraded last-resort
   fallback, not the default outcome.
-- Never create more than one workspace per run. If `workspace_create`
-  fails, do not retry silently — surface the error and stop.
+- Create at most one workspace per run. `workspace_create` runs only
+  on step 5's "create new" branch; the "use current" and "switch to
+  existing" branches never create a workspace. On any
+  `workspace_create` or `switch` failure, surface the error and stop
+  — no silent retry.
 
 ## Error Handling
 
@@ -411,6 +453,8 @@ messages are in the sub-bullets.
 
 5. **MCP errors.** Surface the server message and exit 0; the
    workspace-state context differs by phase.
+   - `switch` fails → the session is unchanged (still pinned to the
+     previous workspace); no mint, no write, no instrumentation.
    - `workspace_create` fails → nothing was created; no mint, no write,
      no instrumentation.
    - `workspace_mint_key` fails → workspace already exists. Append
@@ -462,6 +506,23 @@ proposes a diff that appends the Kubit processor on the returned
 provider; user approves. Prints:
 ```
 Kubit workspace "payments-prod" created; API key written to .env
+Kubit wiring merged into src/payments/otel.py.
+Verify with: python -c "..."
+```
+
+**Repo already has a workspace — reuse it:**
+Input: *"re-issue my Kubit key and wire the exporter"*
+Output: Detected `langfuse`. Session from `/kubit-connect` shows
+current workspace `payments-prod` in org `acme`. Skill prints
+`Current Kubit workspace: "payments-prod" (org "acme")`, followed
+by `Other workspaces in "acme":` and a short list
+(`payments-staging`, `checkout-prod`), then the three options;
+user picks option 1 (use current). No `workspace_create`, no
+`switch`. Mints a fresh key against the existing session, writes
+`KUBIT_EXPORT_API_KEY` into `.env`, installs the SDK, merges
+wiring. Close-out prints:
+```
+Kubit workspace "payments-prod" selected; new API key written to .env
 Kubit wiring merged into src/payments/otel.py.
 Verify with: python -c "..."
 ```
