@@ -5,11 +5,9 @@ JS/TS (`langfuse`, `@langfuse/tracing`, `@langfuse/openai`). Both Python v2
 (legacy `langfuse.trace()` / `.span()` / `.generation()`) and v3
 (`@observe` decorator, `start_as_current_observation`) are included.
 
-**Cross-reference:** For Java, Go, Rust, .NET, or other non-Python/JS repos
-that send to Langfuse via the OpenTelemetry endpoint, prefer
-`otel-genai.md` — Langfuse's recommended path for those languages is OTel,
-and the span shape at the wire matches the OTel GenAI conventions.
-Community SDKs (Ruby, Elixir, PHP, etc.) are out of scope.
+Non-Python/JS Langfuse repos (Java, Go, Rust, .NET — which send via
+the OpenTelemetry endpoint) and community SDKs (Ruby, Elixir, PHP,
+etc.) are out of scope right now.
 
 ## 1. Dependency signals
 

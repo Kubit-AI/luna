@@ -18,9 +18,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `/kubit-integrate` now emits bootstrap files that wire the
   first-party Kubit SDKs (`kubit-otel` on PyPI, `@kubit-ai/otel` on
   npm) instead of raw OTLP/HTTP exporter code, using the SDK's
-  token-exchange transport. Supported frameworks: Braintrust,
-  Langfuse, LangSmith, Logfire, OpenAI Agents SDK, OpenInference,
-  OpenLLMetry, and OpenTelemetry GenAI.
+  token-exchange transport. Supported framework: Langfuse.
+- `/kubit-integrate` and `/kubit-blame` now support Langfuse only;
+  other frameworks exit with a friendly message. Adapters for
+  Braintrust, LangSmith, Logfire, OpenAI Agents, OpenInference,
+  OpenLLMetry, Vercel AI, and OpenTelemetry GenAI remain in the repo
+  under `docs/frameworks/` and will be re-introduced incrementally.
 - `/kubit-integrate` renames the env vars it writes to your `.env`:
   `KUBIT_OTEL_API_KEY` → `KUBIT_EXPORT_API_KEY` and
   `KUBIT_OTEL_ENDPOINT` → `KUBIT_EXPORT_ENDPOINT`. The endpoint value

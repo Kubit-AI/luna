@@ -1,20 +1,22 @@
 ---
 name: blame
-description: Use this skill when the user wants to find the code change responsible for a trace regression — errors, sentiment drift, escalations, intent accuracy drops. Blame is downstream of /kubit-report and /kubit-inspect and never fetches metrics itself.
+description: Use this skill when the user wants to find the code change responsible for a Langfuse trace regression — errors, sentiment drift, escalations, intent accuracy drops. Blame is downstream of /kubit-report and /kubit-inspect and never fetches metrics itself.
 ---
 
 # /kubit-blame
 
 ## Overview
 
-This skill is "git blame for agents". Given trace data flagged as problematic,
-it finds the recent commit(s) most likely responsible. It detects which
-tracing framework your repo uses (Braintrust, Langfuse, LangSmith, Pydantic
-Logfire, OpenAI Agents SDK, OpenInference / Arize Phoenix, OpenLLMetry /
-Traceloop, Vercel AI SDK, or OpenTelemetry GenAI), maps trace identifiers to concrete code locations with
-user confirmation for anything ambiguous, then runs `git log` over those
-locations and ranks suspects by temporal proximity, coverage, and diff
-surface — each with a short behavioral-change summary.
+This skill is "git blame for agents". Given Langfuse trace data flagged as
+problematic, it finds the recent commit(s) most likely responsible. It maps
+trace identifiers to concrete code locations with user confirmation for
+anything ambiguous, then runs `git log` over those locations and ranks
+suspects by temporal proximity, coverage, and diff surface — each with a
+short behavioral-change summary.
+
+Langfuse is the only framework supported right now. Adapters for other
+frameworks are on hold under `docs/frameworks/blame/` in the repo and will
+be re-introduced incrementally.
 
 ## When to Use
 
@@ -47,36 +49,23 @@ surface — each with a short behavioral-change summary.
    time window. Do not guess — if the phrasing is ambiguous about any of
    these, ask the user one short question to clarify.
 
-2. **Detect the tracing framework.** Grep the user's current working
-   directory (their application repo, NOT this skill's install dir) for
-   dependency signals from each adapter. The adapter files ship inside the
-   installed skill at:
-   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/<framework>.md`
-
-   Adapters to check (section 1 of each for the grep patterns):
-   - `braintrust.md`
-   - `langfuse.md`
-   - `langsmith.md`
-   - `logfire.md`
-   - `openai-agents.md`
-   - `openinference.md`
-   - `openllmetry.md`
-   - `vercel-ai.md`
-   - `otel-genai.md`
+2. **Detect Langfuse.** Grep the user's current working directory (their
+   application repo, NOT this skill's install dir) for Langfuse dependency
+   signals per the patterns in:
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/langfuse.md` §1
 
    Check `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, and
-   a shallow scan of top-level imports. If multiple frameworks match, ask
-   the user which one produced the traces in question (or "all"). If none
-   match, ask the user which framework is in use — do not guess.
+   a shallow scan of top-level imports. If no Langfuse signals are found,
+   print *"Sorry, at the moment only Langfuse tracing is supported. Add
+   Langfuse tracing to your repo first, or reach out on #kubit."* and exit 0.
 
 3. **Resolve trace data.** If the user gave only a report / export URL,
    spawn `kubit-analyst` to parse it and extract trace identifiers. If the
    user gave raw trace JSON or explicit ids, use those directly.
 
-4. **Dispatch `kubit-blame-mapper`.** Pass: the detected framework(s), the
-   absolute path(s) to the adapter file(s), the extracted trace
-   identifiers, and the repo root. The subagent returns a compact JSON
-   mapping table.
+4. **Dispatch `kubit-blame-mapper`.** Pass: the Langfuse adapter path, the
+   extracted trace identifiers, and the repo root. The subagent returns a
+   compact JSON mapping table.
 
 5. **User-confirmation gate.** For every row where `status != "confirmed"`:
    - `ambiguous` → list the candidates to the user and ask them to pick one
@@ -130,9 +119,8 @@ surface — each with a short behavioral-change summary.
 
 ## Error Handling
 
-- **No framework detected.** Ask the user which framework is in use.
-- **Multiple frameworks detected.** Ask the user which produced these
-  traces, or accept "all" — then run the mapper once per framework.
+- **No Langfuse detected.** Print the friendly unsupported message (step 2)
+  and exit 0.
 - **Malformed handoff / ambiguous phrasing.** Ask one clarifying question;
   refuse to invent values.
 - **Not a git checkout.** Surface the correlator's clear error; suggest
@@ -146,9 +134,9 @@ surface — each with a short behavioral-change summary.
 
 **Metric-regression driven (primary):**
 Input: *"blame the checkout escalation spike from last week"*
-Output: Framework: OpenAI Agents SDK. Three trace identifiers mapped, two
-        confirmed and one picked by the user. Top suspect: commit 7f3a1c2
-        on 2026-04-12 — tightened refund eligibility prompt; score 0.87.
+Output: Langfuse detected. Three trace identifiers mapped, two confirmed
+        and one picked by the user. Top suspect: commit 7f3a1c2 on
+        2026-04-12 — tightened refund eligibility prompt; score 0.87.
 
 **Trace-driven exploratory:**
 Input: *"why did trace t_abc fail — what changed?"*

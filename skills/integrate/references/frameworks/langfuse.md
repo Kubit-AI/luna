@@ -72,6 +72,7 @@ Python:
 ```python
 # Kubit processor attached to the provider that already carries
 # LangfuseSpanProcessor. No new provider, no parallel pipeline.
+import os
 from kubit_otel import KubitSpanProcessor
 
 provider.add_span_processor(
@@ -93,7 +94,10 @@ import { KubitSpanProcessor } from "@kubit-ai/otel";
 const sdk = new NodeSDK({
   spanProcessors: [
     new LangfuseSpanProcessor(),
-    new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY! }),
+    new KubitSpanProcessor({
+      apiKey: process.env.KUBIT_EXPORT_API_KEY!,
+      tokenEndpoint: process.env.KUBIT_EXPORT_ENDPOINT,
+    }),
   ],
 });
 sdk.start();
@@ -148,7 +152,10 @@ const provider = new NodeTracerProvider({
   resource: resourceFromAttributes({ "service.name": "<service-name>" }),
   spanProcessors: [
     new LangfuseSpanProcessor(),
-    new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY! }),
+    new KubitSpanProcessor({
+      apiKey: process.env.KUBIT_EXPORT_API_KEY!,
+      tokenEndpoint: process.env.KUBIT_EXPORT_ENDPOINT,
+    }),
   ],
 });
 provider.register();
@@ -170,7 +177,10 @@ wiring. Stands up a Kubit-owned provider in parallel:
 // /kubit-integrate — the OTel shape co-registers both processors.
 import { configure } from "@kubit-ai/otel";
 
-configure({ apiKey: process.env.KUBIT_EXPORT_API_KEY! });
+configure({
+  apiKey: process.env.KUBIT_EXPORT_API_KEY!,
+  tokenEndpoint: process.env.KUBIT_EXPORT_ENDPOINT,
+});
 ```
 
 ## 3a. Integration-site signals
@@ -193,7 +203,7 @@ TypeScript:
 - A module that imports from `@langfuse/otel` and constructs a
   provider via `new NodeSDK({ spanProcessors: [...] })` or
   `new NodeTracerProvider({ spanProcessors: [...] })`. Add
-  `new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY! })`
+  `new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY!, tokenEndpoint: process.env.KUBIT_EXPORT_ENDPOINT })`
   to the same `spanProcessors` array — v2 does not support adding
   processors after construction, so `configure(...)` is NOT a valid
   merge tool on the TS side (it would register a parallel provider
@@ -238,10 +248,15 @@ import time; time.sleep(2)
 TypeScript:
 
 ```bash
-KUBIT_EXPORT_API_KEY=<your-key> node -r ts-node/register -e "
-require('./kubit-instrumentation');
-const { trace } = require('@opentelemetry/api');
-trace.getTracer('kubit-verify').startSpan('hello-kubit').end();
-setTimeout(() => process.exit(0), 2000);
-"
+KUBIT_EXPORT_API_KEY=<your-key> KUBIT_EXPORT_ENDPOINT=<your-endpoint> \
+  npx tsx -e "
+    import('./src/kubit-instrumentation').then(async () => {
+      const { trace } = await import('@opentelemetry/api');
+      trace.getTracer('kubit-verify').startSpan('hello-kubit').end();
+      setTimeout(() => process.exit(0), 2000);
+    });
+  "
 ```
+
+If the bootstrap sits at the repo root rather than under `src/`, change the
+import path to `./kubit-instrumentation`.
