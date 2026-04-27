@@ -24,7 +24,7 @@ Results from each step are controlled by the limits of the underlying skills (de
 
 ## Workflow
 
-1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to `/kubit-connect` — workspace and organization selection is owned by that skill.
+1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a SESSION token if one isn't already available in this session. `init` is the only MCP tool that returns workspace context and a session token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch, redirect to `/kubit-connect` — workspace and organization selection is owned by that skill.
 2. **Decompose the request.** Identify which `/kubit-*` skills the workflow needs and in what order. Map how results flow between steps (e.g. trace ids from `/kubit-inspect` become inputs to `/kubit-dataset`). Echo the plan back to the user before executing.
 
    The kubit-analyst sub-agent is the default analysis path for any multi-result query that returns an export URL. It is spawned by the skill executing that step — the workflow skill does not spawn it directly. When a workflow step involves `/kubit-inspect` or `/kubit-report` with multi-result data, expect those skills to route through kubit-analyst automatically for full-dataset analysis.

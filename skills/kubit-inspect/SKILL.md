@@ -23,7 +23,7 @@ aggregate analytics and trends, use /kubit-report.
 
 ## Workflow
 
-1. **Confirm workspace context.** Verify the current org/workspace is set. If no context exists or the user wants to switch, redirect to /kubit-connect — workspace and organization selection is owned by that skill.
+1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a SESSION token if one isn't already available in this session. `init` is the only MCP tool that returns workspace context and a session token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill.
 2. **Check for a cached dataset (session-scoped).** Compute the cache key from the current MCP SESSION token so concurrent sessions don't collide:
 
    ```bash
