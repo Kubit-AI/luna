@@ -31,7 +31,7 @@ luna/
 
 Each skill is `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`) defining the interactive process.
 
-`bin/install.js` has a `SHIPPED_SKILLS` allowlist that controls which source folders under `skills/` actually get installed. Currently ships: `blame`, `connect`, `help`, `inspect`, `integrate`, `report`, `update`. Source folders not on the allowlist (e.g. `dataset`, `workflows`) stay in the repo for future iteration but are not installed into Claude Code or Cursor.
+`bin/install.js` has a `SHIPPED_SKILLS` allowlist that controls which source folders under `skills/` actually get installed. Source dirs are kubit-prefixed and the prefix is the source of truth — install.js copies them as-is (no rename). Currently ships: `kubit-blame`, `kubit-connect`, `kubit-help`, `kubit-inspect`, `kubit-integrate`, `kubit-report`, `kubit-update`. Source folders not on the allowlist (e.g. `kubit-dataset`, `kubit-workflows`) stay in the repo for future iteration but are not installed into Claude Code or Cursor.
 
 ### Why each unshipped skill is on hold
 

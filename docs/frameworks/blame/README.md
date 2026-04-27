@@ -10,7 +10,7 @@ subagent reads them as part of its input.
 ## Shipped vs parked
 
 The shipped v1 set lives under
-`skills/blame/references/frameworks/` and mirrors `/kubit-integrate`'s
+`skills/kubit-blame/references/frameworks/` and mirrors `/kubit-integrate`'s
 two-axis `sink-*.md` / `source-*.md` split:
 
 - `sink-langfuse.md`
@@ -37,7 +37,7 @@ into the shipped set under their `sink-` / `source-` names.)
 1. Decide whether it's a sink (owns a span destination) or a source
    (emits OTel spans without a native destination). Most parked
    adapters are sources.
-2. Copy to `skills/blame/references/frameworks/sink-<name>.md` or
+2. Copy to `skills/kubit-blame/references/frameworks/sink-<name>.md` or
    `source-<name>.md`. Rename the H1 title to match.
 3. Add or revise §1 dependency signals so they exactly mirror
    `/kubit-integrate`'s same-named adapter. Drift between the two
@@ -70,7 +70,7 @@ Which trace / span fields carry the identifiers the mapper needs:
 Include a real example JSON snippet showing a minimal span or run object.
 
 (LangChain-style sink-dependent sources may defer §2 to the host
-sink adapter — see `skills/blame/references/frameworks/source-langchain.md`.)
+sink adapter — see `skills/kubit-blame/references/frameworks/source-langchain.md`.)
 
 ### 3. Code-side conventions
 

@@ -45,7 +45,7 @@ const SHIPPED_AGENTS = ['kubit-analyst', 'kubit-blame-mapper', 'kubit-blame-corr
 // Explicit allowlist of skills that ship. Source folders under `skills/` not
 // listed here stay in the repo but are not installed. Keep this in sync with
 // README.md, skills/help/SKILL.md, CHANGELOG.md, and CLAUDE.md.
-const SHIPPED_SKILLS = ['blame', 'connect', 'help', 'inspect', 'report', 'update', 'integrate'];
+const SHIPPED_SKILLS = ['kubit-blame', 'kubit-connect', 'kubit-help', 'kubit-inspect', 'kubit-report', 'kubit-update', 'kubit-integrate'];
 
 const HELP = `kubit-agent-plugin — install the Kubit agent plugin into Claude Code and/or Cursor
 
@@ -149,7 +149,7 @@ function rmIfExists(p) {
 // over from previous versions that are no longer in the allowlist. Handles
 // renames (kubit-instrument -> kubit-integrate) and removals automatically.
 function pruneStaleInstalls(skillsDir, agentsDir, shippedSkills, shippedAgents) {
-  const keepSkills = new Set(shippedSkills.map((n) => `kubit-${n}`));
+  const keepSkills = new Set(shippedSkills);
   if (fs.existsSync(skillsDir)) {
     for (const entry of fs.readdirSync(skillsDir)) {
       if (entry.startsWith('kubit-') && !keepSkills.has(entry)) {
@@ -337,13 +337,10 @@ function claudeMcpPath(args) {
   return path.join(os.homedir(), '.claude.json');
 }
 
-// Rewrite a Claude Code SKILL.md for the dash-namespaced loose-skill install.
-function transformSkillForClaude(skillName, skillMd, ctx) {
-  const { frontmatter, body } = parseFrontmatter(skillMd);
-  const fm = frontmatter || {};
-  const newFm = { ...fm, name: `kubit-${skillName}` };
-  const newBody = substituteKubitMarkers(body, ctx);
-  return writeFrontmatter(newFm, newBody);
+// Apply Kubit marker substitution to a Claude Code SKILL.md. Frontmatter is
+// authoritative in source — `name` already matches the kubit-* dir.
+function transformSkillForClaude(skillMd, ctx) {
+  return substituteKubitMarkers(skillMd, ctx);
 }
 
 async function installClaude(args) {
@@ -375,7 +372,7 @@ async function installClaude(args) {
   // → kubit-integrate) instead of leaving orphans behind.
   pruneStaleInstalls(skillsDir, agentsDir, skillNames, SHIPPED_AGENTS);
   for (const name of skillNames) {
-    rmIfExists(path.join(skillsDir, `kubit-${name}`));
+    rmIfExists(path.join(skillsDir, name));
   }
   for (const name of SHIPPED_AGENTS) {
     rmIfExists(path.join(agentsDir, `${name}.md`));
@@ -393,7 +390,7 @@ async function installClaude(args) {
     const srcDir = path.join(srcSkillsDir, name);
     const src = path.join(srcDir, 'SKILL.md');
     if (!fs.existsSync(src)) continue;
-    const destDir = path.join(skillsDir, `kubit-${name}`);
+    const destDir = path.join(skillsDir, name);
     fs.mkdirSync(destDir, { recursive: true });
     // Copy every sibling file/dir next to SKILL.md (e.g. references/). Markdown
     // files get marker substitution; other files are byte-for-byte.
@@ -401,8 +398,8 @@ async function installClaude(args) {
       if (entry === 'SKILL.md') continue;
       copySkillSibling(path.join(srcDir, entry), path.join(destDir, entry), ctx);
     }
-    // SKILL.md gets the frontmatter rewrite + marker substitution.
-    const transformed = transformSkillForClaude(name, fs.readFileSync(src, 'utf8'), ctx);
+    // SKILL.md gets marker substitution; frontmatter is authoritative in source.
+    const transformed = transformSkillForClaude(fs.readFileSync(src, 'utf8'), ctx);
     fs.writeFileSync(path.join(destDir, 'SKILL.md'), transformed);
   }
 
@@ -465,11 +462,13 @@ function cursorMcpPath(args) {
 }
 
 // Rewrite a Claude Code SKILL.md for Cursor's native skills discovery path
-// (~/.cursor/skills/<name>/SKILL.md — see cursor.com/docs/plugins).
+// (~/.cursor/skills/<name>/SKILL.md — see cursor.com/docs/plugins). Cursor
+// only honors {name, description} in skill frontmatter; strip the rest.
 function transformSkillForCursor(skillName, skillMd, ctx) {
   const { frontmatter, body } = parseFrontmatter(skillMd);
-  const desc = (frontmatter && frontmatter.description) || `Kubit ${skillName} skill`;
-  const newFm = { name: `kubit-${skillName}`, description: desc };
+  const fm = frontmatter || {};
+  const desc = fm.description || `Kubit ${skillName} skill`;
+  const newFm = { name: fm.name || skillName, description: desc };
   const newBody = substituteKubitMarkers(body, ctx);
   return writeFrontmatter(newFm, newBody);
 }
@@ -517,7 +516,7 @@ async function installCursor(args) {
   // → kubit-integrate) instead of leaving orphans behind.
   pruneStaleInstalls(skillsDir, agentsDir, skillNames, SHIPPED_AGENTS);
   for (const name of skillNames) {
-    rmIfExists(path.join(skillsDir, `kubit-${name}`));
+    rmIfExists(path.join(skillsDir, name));
   }
   for (const name of SHIPPED_AGENTS) {
     rmIfExists(path.join(agentsDir, `${name}.md`));
@@ -535,7 +534,7 @@ async function installCursor(args) {
     const srcDir = path.join(srcSkillsDir, name);
     const src = path.join(srcDir, 'SKILL.md');
     if (!fs.existsSync(src)) continue;
-    const destDir = path.join(skillsDir, `kubit-${name}`);
+    const destDir = path.join(skillsDir, name);
     fs.mkdirSync(destDir, { recursive: true });
     // Copy every sibling file/dir next to SKILL.md (e.g. references/). Markdown
     // files get marker substitution; other files are byte-for-byte.
@@ -543,7 +542,7 @@ async function installCursor(args) {
       if (entry === 'SKILL.md') continue;
       copySkillSibling(path.join(srcDir, entry), path.join(destDir, entry), ctx);
     }
-    // SKILL.md gets the frontmatter rewrite + marker substitution.
+    // SKILL.md gets frontmatter normalized for Cursor + marker substitution.
     const transformed = transformSkillForCursor(name, fs.readFileSync(src, 'utf8'), ctx);
     fs.writeFileSync(path.join(destDir, 'SKILL.md'), transformed);
   }

@@ -1,5 +1,5 @@
 ---
-name: inspect
+name: kubit-inspect
 description: Use this skill when the user wants to find or drill into raw Kubit data — traces, sessions, users, or events.
 ---
 
