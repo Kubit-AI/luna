@@ -1,4 +1,4 @@
-# Langfuse Adapter
+# Langfuse Sink Adapter (blame)
 
 Covers Langfuse's two officially-supported SDKs: Python (`langfuse`) and
 JS/TS (`langfuse`, `@langfuse/tracing`, `@langfuse/openai`). Both Python v2
@@ -8,6 +8,18 @@ JS/TS (`langfuse`, `@langfuse/tracing`, `@langfuse/openai`). Both Python v2
 Non-Python/JS Langfuse repos (Java, Go, Rust, .NET — which send via
 the OpenTelemetry endpoint) and community SDKs (Ruby, Elixir, PHP,
 etc.) are out of scope right now.
+
+**Cross-reference — LangChain.** When `langchain` is also detected,
+Langfuse v3's `CallbackHandler` (Python
+`from langfuse.langchain import CallbackHandler`, TS
+`from "@langfuse/langchain"`) routes LangChain spans through this
+adapter's shape. The names that show up in those spans are
+LangChain-specific (Runnable / Chain / Tool / LangGraph node) — see
+`source-langchain.md` for the code-side grep patterns. The Langfuse
+v2 import `from langfuse.callback import CallbackHandler` (Python)
+and the v2 JS package `langfuse-langchain` ship through Langfuse's
+non-OTel HTTP pipeline, so Kubit never sees those spans and blame
+cannot map them; see `source-langchain.md` §1 for the v2 → v3 trap.
 
 ## 1. Dependency signals
 
@@ -23,6 +35,11 @@ Grep these patterns in manifests and imports:
   references
 
 ## 2. Trace-shape schema
+
+**Primary instrumentation scope:** `langfuse-sdk` (matches the Langfuse
+SDK's tracer name in the kubit-otel filter — see `KNOWN_LLM_INSTRUMENTATION_SCOPE_PREFIXES`).
+Langfuse-routed framework spans (LangChain via `@langfuse/langchain`,
+LlamaIndex, etc.) ride under the same scope.
 
 Langfuse's stable unit is the `Observation` — a node in a trace tree. Every
 observation has:

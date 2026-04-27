@@ -1,4 +1,8 @@
-# Braintrust Adapter (instrument)
+# Braintrust Sink Adapter (instrument)
+
+Hybrid — ships source instrumentation alongside the Braintrust sink.
+`provider_owner: user` once OTel-compat mode is enabled (both
+Braintrust and Kubit are processors on a user-constructed provider).
 
 ## 1. Dependency signals
 
@@ -46,9 +50,8 @@ explicit `y/N` opt-in before writing any file. Default is no.
 >
 > 2. **Existing TracerProvider.**
 >    - *Python.* If your app already registers a global OTel
->      `TracerProvider` (for example, an OpenInference or OpenLLMetry
->      setup), the bootstrap file attaches to it rather than replace
->      it — but it adds `BraintrustSpanProcessor` to that provider,
+>      `TracerProvider`, the bootstrap file attaches to it rather than
+>      replace it — but it adds `BraintrustSpanProcessor` to that provider,
 >      which means **all** OTel spans in the process — not just
 >      Braintrust ones — start flowing into Braintrust. If that is
 >      undesirable, configure `BraintrustSpanProcessor` with a
@@ -252,7 +255,7 @@ Python:
 KUBIT_EXPORT_API_KEY=<your-key> KUBIT_EXPORT_ENDPOINT=<your-endpoint> BRAINTRUST_OTEL_COMPAT=true python -c "
 {{KUBIT_IMPORT_STATEMENT}}
 from opentelemetry import trace
-trace.get_tracer('kubit-verify').start_span('hello-kubit').end()
+trace.get_tracer('kubit-sdk-verify').start_span('hello-kubit').end()
 import time; time.sleep(2)
 "
 ```
@@ -263,7 +266,7 @@ TypeScript:
 KUBIT_EXPORT_API_KEY=<your-key> BRAINTRUST_OTEL_COMPAT=true node -r ts-node/register -e "
 require('./kubit-instrumentation');
 const { trace } = require('@opentelemetry/api');
-trace.getTracer('kubit-verify').startSpan('hello-kubit').end();
+trace.getTracer('kubit-sdk-verify').startSpan('hello-kubit').end();
 setTimeout(() => process.exit(0), 2000);
 "
 ```

@@ -1,28 +1,55 @@
-# Framework Adapter References
+# Framework Adapter References (parked)
 
-Each file in this directory teaches the `kubit-blame-mapper` subagent how to map
-trace identifiers produced by a specific tracing framework back to code sites in
-the user's repo. Adapters are pure markdown — the mapper subagent reads them as
-part of its input.
+Each file in this directory is a parked `/kubit-blame` adapter — kept
+in source for incremental reintroduction but not currently shipped.
+Adapters teach the `kubit-blame-mapper` subagent how to map trace
+identifiers produced by a specific tracing framework back to code
+sites in the user's repo. Adapters are pure markdown — the mapper
+subagent reads them as part of its input.
 
-## When to add a new adapter
+## Shipped vs parked
 
-Add a new adapter when users want `/kubit-blame` to work against a tracing
-framework not currently covered. The launch set is:
+The shipped v1 set lives under
+`skills/blame/references/frameworks/` and mirrors `/kubit-integrate`'s
+two-axis `sink-*.md` / `source-*.md` split:
 
-- `braintrust.md` — Braintrust (Python + JS/TS official SDKs)
-- `langfuse.md` — Langfuse (Python + JS/TS official SDKs)
+- `sink-langfuse.md`
+- `sink-braintrust.md`
+- `source-vercel-ai.md`
+- `source-otel-genai.md`
+- `source-langchain.md`
+
+The files below stay parked here until users ask for them and we
+have integrate counterparts to keep both skills' framework sets in
+lockstep:
+
 - `langsmith.md` — LangSmith / LangChain
 - `logfire.md` — Pydantic Logfire (Python primary; TS thinner)
 - `openai-agents.md` — OpenAI Agents SDK (Python + JS/TS)
 - `openinference.md` — OpenInference / Arize Phoenix (Python + JS/TS)
 - `openllmetry.md` — OpenLLMetry / Traceloop (Python + TS)
-- `vercel-ai.md` — Vercel AI SDK (TypeScript only)
-- `otel-genai.md` — OpenTelemetry GenAI semantic conventions
 
-## Required sections
+(`braintrust.md`, `vercel-ai.md`, and `otel-genai.md` were promoted
+into the shipped set under their `sink-` / `source-` names.)
 
-Every adapter must contain these five H2 sections, in this order:
+## Promoting a parked adapter
+
+1. Decide whether it's a sink (owns a span destination) or a source
+   (emits OTel spans without a native destination). Most parked
+   adapters are sources.
+2. Copy to `skills/blame/references/frameworks/sink-<name>.md` or
+   `source-<name>.md`. Rename the H1 title to match.
+3. Add or revise §1 dependency signals so they exactly mirror
+   `/kubit-integrate`'s same-named adapter. Drift between the two
+   skills' §1 wording is a bug — a single grep should detect it.
+4. Update `/kubit-blame`'s `SKILL.md` step 2 adapter path list to
+   include the new file.
+5. Verify against ≥ 1 real repo before merging.
+
+## Required sections (when promoting)
+
+Every shipped adapter must contain these five H2 sections, in this
+order:
 
 ### 1. Dependency signals
 
@@ -41,6 +68,9 @@ Which trace / span fields carry the identifiers the mapper needs:
 - Error / status
 
 Include a real example JSON snippet showing a minimal span or run object.
+
+(LangChain-style sink-dependent sources may defer §2 to the host
+sink adapter — see `skills/blame/references/frameworks/source-langchain.md`.)
 
 ### 3. Code-side conventions
 

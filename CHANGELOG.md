@@ -6,45 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
-### Added
-
-- Installer now points at the Kubit production endpoints by default.
-  Running `npx @kubit-ai/agent-plugin` no longer requires any
-  environment setup to reach Kubit. `KUBIT_EXPORT_ENDPOINT` remains
-  available as an override for users targeting a non-default host.
-
 ### Changed
 
-- `/kubit-integrate` now emits bootstrap files that wire the
-  first-party Kubit SDKs (`kubit-otel` on PyPI, `@kubit-ai/otel` on
-  npm) instead of raw OTLP/HTTP exporter code, using the SDK's
-  token-exchange transport. Supported framework: Langfuse.
-- `/kubit-integrate` and `/kubit-blame` now support Langfuse only;
-  other frameworks exit with a friendly message. Adapters for
-  Braintrust, LangSmith, Logfire, OpenAI Agents, OpenInference,
-  OpenLLMetry, Vercel AI, and OpenTelemetry GenAI remain in the repo
-  under `docs/frameworks/` and will be re-introduced incrementally.
-- `/kubit-integrate` renames the env vars it writes to your `.env`:
-  `KUBIT_OTEL_API_KEY` → `KUBIT_EXPORT_API_KEY` and
-  `KUBIT_OTEL_ENDPOINT` → `KUBIT_EXPORT_ENDPOINT`. The endpoint value
-  is now a token-endpoint URL from the Kubit ingest service, not an
-  OTLP base with `/v1/traces` appended.
-- `bin/install.js` template marker renamed `{{KUBIT_OTEL_ENDPOINT}}` →
-  `{{KUBIT_EXPORT_ENDPOINT}}`, with the install-time override env var
-  renamed to match.
-- `/kubit-integrate` becomes the single turn-on-Kubit flow. It
-  ensures a Kubit session (invoking `/kubit-connect` when needed),
-  creates a fresh workspace with an interactive name + timezone
-  prompt, mints an ingestion key, and writes `KUBIT_EXPORT_API_KEY`
-  into the repo's `.env.local` or `.env` (picking automatically
-  based on existing files and framework manifests, or printing an
-  `export …` line instead when the target isn't gitignored) before
-  emitting the SDK bootstrap file.
-- `/kubit-connect` no longer creates workspaces. Use
-  `/kubit-integrate` for onboarding; `/kubit-connect` is now focused
-  on auth and org / workspace selection.
-- `/kubit-help` drops the `create workspace` example from the
-  `/kubit-connect` description to match the scope change above.
+- `/kubit-integrate` is the turn-on-Kubit flow: it detects existing
+  tracing on two axes — observability **sinks** (Langfuse, Braintrust)
+  and LLM-side **sources** (Vercel AI SDK, OpenTelemetry GenAI,
+  LangChain) — creates a Kubit workspace, mints an ingestion key,
+  writes `KUBIT_EXPORT_API_KEY` to `.env.local` / `.env`, and emits a
+  bootstrap that wires the first-party Kubit SDKs (`kubit-otel` on
+  PyPI, `@kubit-ai/otel` on npm) via token-exchange transport. When a
+  sink is detected Kubit joins its pipeline; when no sink is present
+  Kubit becomes the sole sink for the detected sources. The installer
+  defaults to Kubit production endpoints (`KUBIT_EXPORT_ENDPOINT`
+  remains an override), and `/kubit-connect` is now scoped to auth
+  and org / workspace selection.
 
 ## [0.0.3] - 2026-04-20
 

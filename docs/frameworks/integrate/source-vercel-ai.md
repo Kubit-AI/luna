@@ -1,4 +1,10 @@
-# Vercel AI SDK Adapter (instrument)
+# Vercel AI SDK Source Adapter (instrument)
+
+Pure source. Emits spans through whatever `TracerProvider` is
+registered globally (or a provider the user passes via
+`experimental_telemetry: { tracer }`). No vendor-owned provider. When
+no sink is present Kubit becomes the sole sink via plain
+`configure({ apiKey })`.
 
 ## 1. Dependency signals
 
@@ -32,7 +38,7 @@ Vercel AI's tracer resolves to whatever `TracerProvider` is registered
 globally via `@opentelemetry/api` (or a provider the user passed
 explicitly via `experimental_telemetry: { tracer }`). There is no
 vendor-owned provider to preserve — this parallels the `otel-genai`
-story, not the Logfire / Phoenix / Traceloop story.
+story.
 
 Under OTel JS SDK v2 there are two shapes:
 
@@ -215,7 +221,7 @@ TypeScript:
 KUBIT_EXPORT_API_KEY=<your-key> node -r ts-node/register -e "
 require('./kubit-instrumentation');
 const { trace } = require('@opentelemetry/api');
-trace.getTracer('kubit-verify').startSpan('hello-kubit').end();
+trace.getTracer('kubit-sdk-verify').startSpan('hello-kubit').end();
 setTimeout(() => process.exit(0), 2000);
 "
 ```

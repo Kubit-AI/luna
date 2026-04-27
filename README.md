@@ -10,6 +10,7 @@ An agent plugin that adds `/kubit-*` skills to Claude Code and Cursor for workin
 | `/kubit-connect`   | Authenticate and select the current org / workspace              |
 | `/kubit-help`      | List all kubit skills and how to use them                        |
 | `/kubit-inspect`   | Inspect users, sessions, traces, and events                      |
+| `/kubit-integrate` | Wire your LLM app's tracing into Kubit — detects sinks (Langfuse, Braintrust) and sources (Vercel AI, OTel GenAI, LangChain) |
 | `/kubit-report`    | Find, run, or create analytics reports                           |
 | `/kubit-update`    | Check npm for a new version and install it                       |
 

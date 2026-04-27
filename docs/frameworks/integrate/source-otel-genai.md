@@ -1,4 +1,10 @@
-# OpenTelemetry GenAI Adapter (instrument)
+# OpenTelemetry GenAI Source Adapter (instrument)
+
+Canonical **Kubit-as-sole-sink template**. `source-vercel-ai.md`
+delegates here when no sink is detected — Vercel AI's tracer is
+`TracerProvider`-agnostic, and the plain `configure()` /
+`configure({ apiKey })` form below stands up the provider for it to
+flow into.
 
 ## 1. Dependency signals
 
@@ -155,7 +161,7 @@ Python:
 KUBIT_EXPORT_API_KEY=<your-key> KUBIT_EXPORT_ENDPOINT=<your-endpoint> python -c "
 {{KUBIT_IMPORT_STATEMENT}}
 from opentelemetry import trace
-trace.get_tracer('kubit-verify').start_span('hello-kubit').end()
+trace.get_tracer('kubit-sdk-verify').start_span('hello-kubit').end()
 import time; time.sleep(2)
 "
 ```
@@ -166,7 +172,7 @@ TypeScript:
 KUBIT_EXPORT_API_KEY=<your-key> node -r ts-node/register -e "
 require('./kubit-instrumentation');
 const { trace } = require('@opentelemetry/api');
-trace.getTracer('kubit-verify').startSpan('hello-kubit').end();
+trace.getTracer('kubit-sdk-verify').startSpan('hello-kubit').end();
 setTimeout(() => process.exit(0), 2000);
 "
 ```

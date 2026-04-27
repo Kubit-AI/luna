@@ -26,6 +26,15 @@ token everything else depends on.
     /kubit-connect
     /kubit-connect switch workspace staging
 ---
+### /kubit-integrate
+Wires your LLM app's tracing into Kubit. Detects observability sinks
+(Langfuse, Braintrust) and LLM sources (Vercel AI, OTel GenAI),
+creates a Kubit workspace, mints an ingestion key, and emits the
+bootstrap that ships spans to Kubit — either alongside an existing
+sink or as the sole sink for a new app.
+    /kubit-integrate
+    /kubit-integrate turn on Kubit for this Next.js app
+---
 ### /kubit-blame
 Finds the code change behind a trace regression — errors, sentiment drift,
 escalations, intent accuracy drops. Downstream of /kubit-report and

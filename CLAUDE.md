@@ -73,4 +73,8 @@ End-user tarballs must not leak internal infrastructure. Rules:
 
 ## Commit Convention
 
-Do **not** add `Co-Authored-By` or any AI/Claude contribution trailers to commit messages.
+- Keep commit messages short and focused. Prefer a single-line subject
+  under ~70 characters that names what changed; skip the body unless
+  the diff truly needs context the subject can't carry.
+- Do **not** add `Co-Authored-By` or any AI/Claude contribution
+  trailers to commit messages.

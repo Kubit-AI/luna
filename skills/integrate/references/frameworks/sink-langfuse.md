@@ -1,4 +1,10 @@
-# Langfuse Adapter (instrument)
+# Langfuse Sink Adapter (instrument)
+
+Hybrid — Langfuse bundles its own instrumentation (`@observe`, native
+SDK wrappers) with the Langfuse backend. `provider_owner: user` for
+the OTel shape (`@langfuse/otel` is a `SpanProcessor` on a
+user-constructed provider); native shape posts directly to Langfuse's
+HTTP API and runs in parallel to Kubit's own provider.
 
 ## 1. Dependency signals
 
@@ -212,6 +218,52 @@ TypeScript:
 If multiple files match, ask the user which one the agent's traces
 flow through.
 
+## 3b. LangChain source hand-off
+
+Emitted only when `langchain` is in `sources_detected` alongside
+this sink. See `source-langchain.md` for the full detection and
+caveat story; this section is the Langfuse-specific wiring the
+skill surfaces on top of §3's span-processor merge.
+
+Langfuse v3's `CallbackHandler` emits LangChain spans through the
+global OTel `TracerProvider` — the same provider
+`LangfuseSpanProcessor` and `KubitSpanProcessor` are registered on
+(§3). Kubit therefore receives those spans as a sibling processor;
+no extra Kubit-side wiring is needed beyond installing the callback
+package and threading it into each chain call.
+
+Python (`langfuse >= 3` already ships `langfuse.langchain`):
+
+```python
+from langfuse.langchain import CallbackHandler
+
+langfuse_handler = CallbackHandler()
+
+response = chain.invoke(
+    {"input": "…"},
+    config={"callbacks": [langfuse_handler]},
+)
+```
+
+TypeScript (adds `@langfuse/langchain` on top of `@langfuse/otel`):
+
+```typescript
+import { CallbackHandler } from "@langfuse/langchain";
+
+const langfuseHandler = new CallbackHandler();
+
+await chain.invoke(
+  { input: "…" },
+  { callbacks: [langfuseHandler] },
+);
+```
+
+The v2 Python import `from langfuse.callback import CallbackHandler`
+and the v2 JS package `langfuse-langchain` both use Langfuse's
+non-OTel HTTP pipeline — Kubit cannot attach. If a v2 form is
+detected, the skill flags it in the confirmation and does not
+proceed until the user upgrades to v3.
+
 ## 4. Wire-in instruction
 
 Python: add `{{KUBIT_IMPORT_STATEMENT}}` as the first import in
@@ -222,7 +274,7 @@ in `src/index.ts` (or your entrypoint).
 
 Required deps:
 
-- Python: `pip install kubit-otel`
+- Python: `pip install kubit-otel`.
 - TypeScript: `npm install @kubit-ai/otel` (requires
   `@opentelemetry/sdk-trace-base >= 2.0.0` as a peer — pin
   `@opentelemetry/sdk-node` / `sdk-trace-base` / `sdk-trace-node` /
@@ -231,6 +283,9 @@ Required deps:
   `@langfuse/otel` — it's already in `package.json` per §1 (that's
   how this branch is chosen), so no extra install. The native-shape
   standalone form needs no Langfuse-side extras.
+- When `langchain` is also in `sources_detected` (see §3b):
+  - Python: no extra (`langfuse >= 3` bundles `langfuse.langchain`).
+  - TypeScript: add `@langfuse/langchain`.
 
 ## 5. Verification snippet
 
@@ -240,7 +295,7 @@ Python:
 KUBIT_EXPORT_API_KEY=<your-key> KUBIT_EXPORT_ENDPOINT=<your-endpoint> python -c "
 {{KUBIT_IMPORT_STATEMENT}}
 from opentelemetry import trace
-trace.get_tracer('kubit-verify').start_span('hello-kubit').end()
+trace.get_tracer('kubit-sdk-verify').start_span('hello-kubit').end()
 import time; time.sleep(2)
 "
 ```
@@ -252,7 +307,7 @@ KUBIT_EXPORT_API_KEY=<your-key> KUBIT_EXPORT_ENDPOINT=<your-endpoint> \
   npx tsx -e "
     import('./src/kubit-instrumentation').then(async () => {
       const { trace } = await import('@opentelemetry/api');
-      trace.getTracer('kubit-verify').startSpan('hello-kubit').end();
+      trace.getTracer('kubit-sdk-verify').startSpan('hello-kubit').end();
       setTimeout(() => process.exit(0), 2000);
     });
   "

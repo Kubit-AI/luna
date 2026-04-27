@@ -1,22 +1,34 @@
 ---
 name: blame
-description: Use this skill when the user wants to find the code change responsible for a Langfuse trace regression — errors, sentiment drift, escalations, intent accuracy drops. Blame is downstream of /kubit-report and /kubit-inspect and never fetches metrics itself.
+description: Use this skill when the user wants to find the code change responsible for a trace regression — errors, sentiment drift, escalations, intent accuracy drops — in traces ingested via Kubit. Detects which sinks (Langfuse, Braintrust) and sources (Vercel AI, OpenTelemetry GenAI, LangChain, LangSmith, OpenInference, Traceloop, Logfire, OpenAI Agents) shape the spans, then maps trace identifiers to code with user confirmation. Blame is downstream of /kubit-report and /kubit-inspect and never fetches metrics itself.
 ---
 
 # /kubit-blame
 
 ## Overview
 
-This skill is "git blame for agents". Given Langfuse trace data flagged as
-problematic, it finds the recent commit(s) most likely responsible. It maps
-trace identifiers to concrete code locations with user confirmation for
-anything ambiguous, then runs `git log` over those locations and ranks
-suspects by temporal proximity, coverage, and diff surface — each with a
-short behavioral-change summary.
+This skill is "git blame for agents". Given Kubit-ingested trace data
+flagged as problematic, it finds the recent commit(s) most likely
+responsible. It maps trace identifiers to concrete code locations with
+user confirmation for anything ambiguous, then runs `git log` over those
+locations and ranks suspects by temporal proximity, coverage, and diff
+surface — each with a short behavioral-change summary.
 
-Langfuse is the only framework supported right now. Adapters for other
-frameworks are on hold under `docs/frameworks/blame/` in the repo and will
-be re-introduced incrementally.
+Traces always arrive at Kubit (either via `/kubit-integrate` or by
+manual wiring of the kubit-otel SDK's `KubitSpanProcessor` /
+`KubitExporter`). What varies repo-to-repo is **what shaped those
+spans**: which **sinks** (Langfuse, Braintrust) decorate them and
+which **sources** (Vercel AI, OTel GenAI, LangChain, LangSmith,
+OpenInference, Traceloop, Logfire, OpenAI Agents) emit them. Blame
+detects both axes in the user's repo and loads the matching
+code-side adapters into the mapper. It does not assume Kubit is the
+only sink in the code — other sinks may co-exist.
+
+Adapters live at `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/`.
+Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Eight sources:
+`source-vercel-ai.md`, `source-otel-genai.md`, `source-langchain.md`,
+`source-langsmith.md`, `source-openinference.md`,
+`source-traceloop.md`, `source-logfire.md`, `source-openai-agents.md`.
 
 ## When to Use
 
@@ -49,25 +61,92 @@ be re-introduced incrementally.
    time window. Do not guess — if the phrasing is ambiguous about any of
    these, ask the user one short question to clarify.
 
-2. **Detect Langfuse.** Grep the user's current working directory (their
-   application repo, NOT this skill's install dir) for Langfuse dependency
-   signals per the patterns in:
-   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/langfuse.md` §1
+2. **Parallel sink + source scan.** Grep the user's current working
+   directory (their application repo, NOT this skill's install dir)
+   for every adapter's §1 Dependency signals. Check `package.json`,
+   `pyproject.toml`, `requirements.txt`, `go.mod`, and a shallow scan
+   of top-level imports.
 
-   Check `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, and
-   a shallow scan of top-level imports. If no Langfuse signals are found,
-   print *"Sorry, at the moment only Langfuse tracing is supported. Add
-   Langfuse tracing to your repo first, or reach out on #kubit."* and exit 0.
+   Emit two sets: `sinks_detected ⊆ {langfuse, braintrust}` and
+   `sources_detected ⊆ {vercel-ai, otel-genai, langchain, langsmith,
+   openinference, traceloop, logfire, openai-agents}`. Adapter §1
+   lives at:
 
-3. **Resolve trace data.** If the user gave only a report / export URL,
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/sink-langfuse.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/sink-braintrust.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/source-vercel-ai.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/source-otel-genai.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/source-langchain.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/source-langsmith.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/source-openinference.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/source-traceloop.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/source-logfire.md`
+   - `{{KUBIT_CONFIG_DIR}}/skills/kubit-blame/references/frameworks/source-openai-agents.md`
+
+   **Detection traps** (call out in the confirmation when they apply):
+   - `@opentelemetry/api` alone in TS without any GenAI marker → not
+     a GenAI source; skip `otel-genai` (per `source-otel-genai.md` §1).
+   - LangChain wiring at the v2 import path — Python
+     `from langfuse.callback import CallbackHandler` or JS
+     `from "langfuse-langchain"` — routes spans through Langfuse's
+     non-OTel HTTP pipeline, so LangChain identifiers cannot be
+     mapped (per `source-langchain.md` §1). Surface the trap and
+     mark every LangChain identifier `unresolved` rather than
+     blocking the run.
+   - LangChain alongside Braintrust without OTel-compat
+     (`BRAINTRUST_OTEL_COMPAT=true` / `setupOtelCompat()` absent) →
+     same pipeline gap (per `source-langchain.md` §1). Same handling.
+
+3. **Confirm detection.** Print the detected axes back to the user
+   in one line — *"Detected sinks: `<sinks>`. Detected sources:
+   `<sources>`. Continue? [Y/n]"* (omit either word when its set is
+   empty). Surface any traps from step 2 inline. On `n`, exit 0.
+
+   Empty / unsupported terminal cases (no session touch, no fetch):
+
+   - `sinks_detected == [] && sources_detected == []` → print
+     *"No supported sink or source detected. `/kubit-blame` recognises
+     sinks (Langfuse, Braintrust) and sources (Vercel AI, OpenTelemetry
+     GenAI, LangChain, LangSmith, OpenInference, Traceloop, Logfire,
+     OpenAI Agents). Add tracing to your repo and re-run, or reach out
+     on #kubit."* and exit 0.
+   - `sinks_detected == [] && sources_detected == {langchain}` → print
+     *"Detected LangChain, no sink. LangChain emits no spans on its
+     own — they only reach Kubit through a Langfuse or Braintrust
+     callback handler. Add one of those sinks and re-run."* and exit 0.
+
+   **Kubit SDK nudge (informational).** Manual wiring of the Kubit
+   SDK is a supported path — `/kubit-integrate` is one entry point
+   among several. Detect Kubit SDK presence via:
+
+   - Manifests: `kubit-otel` in Python `pyproject.toml` /
+     `requirements.txt`; `@kubit-ai/otel` in `package.json`.
+   - Imports / wiring literals (covers monorepos, git installs,
+     workspace-linked deps the manifest scan misses):
+     - Python: `from kubit_otel import`, `import kubit_otel`,
+       `KubitSpanProcessor`, `KubitExporter`, `kubit_otel.configure(`,
+       `kubit_otel.attach(`
+     - JS/TS: `from "@kubit-ai/otel"`, `KubitSpanProcessor`,
+       `KubitExporter`, `configure({ apiKey:` paired with a
+       `@kubit-ai/otel` import in the same file
+
+   When Kubit SDK is **not** detected by either path, append one line
+   to the confirmation: *"No Kubit SDK detected — verify spans are
+   landing in Kubit before relying on blame results."* Do not block;
+   the user may be inspecting traces from a separate ingestion path.
+   When Kubit SDK **is** detected, append no nudge.
+
+4. **Resolve trace data.** If the user gave only a report / export URL,
    spawn `kubit-analyst` to parse it and extract trace identifiers. If the
    user gave raw trace JSON or explicit ids, use those directly.
 
-4. **Dispatch `kubit-blame-mapper`.** Pass: the Langfuse adapter path, the
-   extracted trace identifiers, and the repo root. The subagent returns a
-   compact JSON mapping table.
+5. **Dispatch `kubit-blame-mapper`.** Pass: the lists `sinks_detected`
+   and `sources_detected`, the absolute paths to every matching
+   adapter file, the extracted trace identifiers, and the repo root.
+   The subagent reads all supplied adapters and returns a compact
+   JSON mapping table.
 
-5. **User-confirmation gate.** For every row where `status != "confirmed"`:
+6. **User-confirmation gate.** For every row where `status != "confirmed"`:
    - `ambiguous` → list the candidates to the user and ask them to pick one
      or skip that identifier.
    - `unresolved` → show the reason; ask the user to supply the code
@@ -76,17 +155,18 @@ be re-introduced incrementally.
    - Do not proceed to the correlator until every row is either confirmed
      or skipped.
 
-6. **Resolve the time window.** If the handoff or user phrasing gave an
+7. **Resolve the time window.** If the handoff or user phrasing gave an
    explicit `[since, until]`, use it. Otherwise ask the user one question
    for it — do not infer.
 
-7. **Dispatch `kubit-blame-correlator`.** Pass: the confirmed mappings, the
+8. **Dispatch `kubit-blame-correlator`.** Pass: the confirmed mappings, the
    time window, and any metric context.
 
-8. **Present results in three blocks.**
+9. **Present results in three blocks.**
 
-   **Block 1 — Resolved context** (one or two lines): framework, count of
-   mapped locations, window.
+   **Block 1 — Resolved context** (one or two lines): the two-axis
+   summary (e.g. *"Sinks: langfuse. Sources: vercel-ai."*; print
+   `(none)` for an empty set), count of mapped locations, window.
 
    **Block 2 — Ranked suspects** (top N, default 5): one entry per suspect
    with SHA, date, author, message, touched paths, semantic summary, score
@@ -119,8 +199,11 @@ be re-introduced incrementally.
 
 ## Error Handling
 
-- **No Langfuse detected.** Print the friendly unsupported message (step 2)
-  and exit 0.
+- **No supported sink/source detected.** Print the friendly message
+  from step 3 and exit 0.
+- **LangChain only, no sink.** Print the LangChain-only message from
+  step 3 and exit 0.
+- **Confirmation declined.** Exit 0.
 - **Malformed handoff / ambiguous phrasing.** Ask one clarifying question;
   refuse to invent values.
 - **Not a git checkout.** Surface the correlator's clear error; suggest
@@ -134,15 +217,25 @@ be re-introduced incrementally.
 
 **Metric-regression driven (primary):**
 Input: *"blame the checkout escalation spike from last week"*
-Output: Langfuse detected. Three trace identifiers mapped, two confirmed
-        and one picked by the user. Top suspect: commit 7f3a1c2 on
-        2026-04-12 — tightened refund eligibility prompt; score 0.87.
+Output: Detected sinks: langfuse. Detected sources: vercel-ai. Three
+        trace identifiers mapped, two confirmed and one picked by the
+        user. Top suspect: commit 7f3a1c2 on 2026-04-12 — tightened
+        refund eligibility prompt; score 0.87.
 
 **Trace-driven exploratory:**
 Input: *"why did trace t_abc fail — what changed?"*
 Output: Mapper identifies the agent + tool involved in the trace. After user
         confirms, correlator shows two commits in the last week that touched
         the mapped locations.
+
+**Multi-sink ambiguity:**
+Input: *"blame the agent regression"* in a repo mid-migration from
+       Langfuse to Braintrust where the same agent name is registered
+       under both `@observe` and `@traced`.
+Output: Detected sinks: langfuse, braintrust. Mapper returns
+        `status: "ambiguous"` with `multiple_adapter_match` for the
+        agent identifier; user picks which site the failing trace
+        flows through.
 
 **Zero suspects:**
 Input: blame a metric drift when the mapped files have no commits in the

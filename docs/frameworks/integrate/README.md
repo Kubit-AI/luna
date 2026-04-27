@@ -1,81 +1,98 @@
 # Integrate Framework Adapter References
 
-Each file in `frameworks/` teaches `/kubit-integrate` how to attach the
-Kubit SDK's span processor (`kubit-otel` / `@kubit-ai/otel`) to a repo
-that already uses a specific tracing framework. Adapters are pure
-markdown — the skill body reads them directly.
+`/kubit-integrate` detects tracing on two orthogonal axes and dispatches
+wiring from the result:
 
-## Framework coverage
+- **Sink** — owns a destination for spans. Dictates the wiring
+  template (merge form vs standalone; OTel-shared provider vs native
+  HTTP; framework-owned provider vs user-owned provider).
+- **Source** — emits OTel spans, no native destination. Confirms
+  span production exists.
 
-- `braintrust.md` — Braintrust (Python + JS/TS)
-- `langfuse.md` — Langfuse (Python + JS/TS)
-- `langsmith.md` — LangSmith / LangChain
-- `logfire.md` — Pydantic Logfire
-- `openai-agents.md` — OpenAI Agents SDK (via OTel contrib)
-- `openinference.md` — OpenInference / Arize Phoenix
-- `openllmetry.md` — OpenLLMetry / Traceloop
-- `vercel-ai.md` — Vercel AI SDK (`ai` / `@ai-sdk/*`, TypeScript only)
-- `otel-genai.md` — OpenTelemetry GenAI semantic conventions
+Adapters are pure markdown — the skill body reads them directly.
 
-## Required sections
+## Sink adapters
 
-Every adapter contains these six H2 sections, in order:
+Each owns a destination. One sink per run drives step 8; others are
+listed if multiple are detected, with the user picking one.
+
+- `sink-langfuse.md` — Langfuse (hybrid; OTel shape or native shape)
+- `sink-braintrust.md` — Braintrust (hybrid; requires OTel-compat
+  mode opt-in — see §Prerequisites)
+
+## Source adapters
+
+Each confirms span production and, when a sink is not present, points
+at the Kubit-as-sole-sink template.
+
+- `source-vercel-ai.md` — Vercel AI SDK (`ai`, `@ai-sdk/*`);
+  TypeScript only
+- `source-otel-genai.md` — OpenTelemetry GenAI semantic conventions;
+  also serves as the **Kubit-as-sole-sink template** that other source
+  adapters delegate to
+
+## Layering rule
+
+When both a sink and one or more sources are detected, the **sink**
+adapter's §3 drives the Kubit wiring template (merge-form vs
+standalone; `attach()` vs `KubitSpanProcessor` in `spanProcessors:
+[...]`).
+
+When no sink is detected but at least one source is, Kubit becomes the
+**sole sink** via `source-otel-genai.md` §3 — plain `configure()`
+(Python) / `configure({ apiKey })` (TypeScript) stands up a
+Kubit-owned `NodeTracerProvider` that the instrumentors resolve to.
+
+When neither is detected, the skill exits with a message listing the
+supported sinks and sources. No session touch, no workspace, no
+writes.
+
+## Required adapter sections
+
+**Sink adapters** carry six H2 sections, in order:
 
 ### 1. Dependency signals
 
 Exact grep patterns in manifests (`package.json`, `pyproject.toml`,
 `requirements.txt`, `go.mod`) and top-level imports that prove the
-framework is in use. **Copy verbatim from the matching blame adapter
-at `skills/blame/references/frameworks/<fw>.md` §1** — the libraries
-and detection signals are identical between skills.
+sink is in use.
 
 ### 2. Minimum-change tier
 
-Always `bootstrap-file`. Names the *fallback* artifact the skill
-writes when step 9 cannot find an existing wiring site to merge
-into (see §3a). In the merge path, §3's snippet is adapted into an
-existing file rather than written out standalone.
+Always `bootstrap-file`. Names the fallback artifact the skill writes
+when step 9 cannot find an existing wiring site. Also names
+`provider_owner: framework|user` — who constructs the
+`TracerProvider` that Kubit attaches to. This choice drives whether
+the skill uses `attach()` / `add_span_processor()` (framework-owned)
+or merges into `spanProcessors: [...]` at construction (user-owned).
 
-**Optional `### Prerequisites` subsection.** If wiring this framework
+**Optional `### Prerequisites` subsection.** If wiring this sink
 changes load-bearing behavior in the user's existing pipeline (e.g.
 flipping a global compat mode, taking over a global TracerProvider),
 add a `### Prerequisites` subsection inside §2 containing a
-verbatim-quoted explanation of the implications and a `[y/N]` prompt.
-The skill body honors this subsection and requires explicit opt-in
-before writing any file. Without this subsection, the skill proceeds
-without prompting.
+verbatim-quoted explanation and a `[y/N]` prompt. The skill body
+honors this subsection and requires explicit opt-in before writing
+any file.
 
 ### 3. Bootstrap snippet
 
-Canonical code block(s) — treat this as the *specification* of the
-minimum Kubit code that must end up in the program, not a rigid file
-template. In the merge path the coding agent adapts placement and
-syntactic style to the surrounding file; in the standalone-file
-fallback the snippet is written out verbatim (with the header date
-substituted). Python + TS variants where the framework supports both.
-All snippets:
+Canonical code blocks for both the merge form (used when §3a finds a
+wiring site) and the standalone form (fallback). Python + TypeScript
+variants where the framework supports both. All snippets:
 
 - Read the API key from `KUBIT_EXPORT_API_KEY` at runtime — never
-  hardcode. Python snippets also plumb `KUBIT_EXPORT_ENDPOINT` through
-  the SDK's optional `token_endpoint=` kwarg so users can point the
-  exporter at a non-default ingestion URL for testing / self-hosted
-  deployments; TS snippets omit it and rely on the SDK default.
-- Pick the emission style that matches the framework's relationship
-  to the OTel `TracerProvider`:
-  - **Kubit owns the provider** (no pre-existing SDK `TracerProvider`,
-    or fine to replace it): call `configure(api_key=...)` from
-    `kubit_otel` / `@kubit-ai/otel`. This builds a `TracerProvider`,
-    attaches the exporter via `BatchSpanProcessor`, and registers it
-    as the global provider.
-  - **Framework owns the provider** (Logfire, Phoenix, Traceloop,
-    Braintrust's OTel-compat mode, or any setup where the framework
-    calls its own init first): attach `KubitSpanProcessor` to the
-    existing provider via `add_span_processor`. Guard with a runtime
-    check that fails loudly if the framework init hasn't run yet.
-- Begin with the fixed two-line header:
+  hardcode. Python snippets plumb `KUBIT_EXPORT_ENDPOINT` through the
+  SDK's optional `token_endpoint=` kwarg; TS snippets rely on the SDK
+  default.
+- Pick the emission style by provider ownership: user-owned →
+  merge `KubitSpanProcessor` into `spanProcessors: [...]` at
+  construction, or call `add_span_processor()` on the provider;
+  framework-owned → call `attach()` after the framework init, guarded
+  to fail loudly if init has not yet run.
+- Begin standalone snippets with the fixed two-line header:
 
   ```
-  # Generated by /kubit-integrate for <framework> on <YYYY-MM-DD>.
+  # Generated by /kubit-integrate for <sink> on <YYYY-MM-DD>.
   # Requires KUBIT_EXPORT_API_KEY env var.
   ```
 
@@ -84,50 +101,58 @@ All snippets:
 ### 3a. Integration-site signals
 
 Grep patterns that identify an existing wiring site the coding agent
-can merge Kubit into (SKILL.md step 9). Separate Python and
-TypeScript bullets; name the exact symbols / call sites (e.g.
-`phoenix.otel.register(`, `new NodeSDK(`, `BraintrustSpanProcessor(`)
-and what the merge looks like. If a framework has no reliable merge
-signal (rare — only LangSmith natively), say so explicitly so the
-skill knows to fall straight through to the standalone file.
+can merge Kubit into. Separate Python and TypeScript bullets. If a
+sink has no reliable merge signal, say so explicitly.
 
 ### 4. Wire-in instruction
 
-Used only on the standalone-file fallback (merge path inlines the
-wiring). Describe the one line the user adds to their entrypoint
-(e.g. `import kubit_instrumentation`) and name the likely entrypoint
-file (e.g. `main.py`, `src/index.ts`).
-
-Also carries the **Required deps** list — `kubit-otel` /
-`@kubit-ai/otel` plus any framework-specific extras (e.g.
-`braintrust[otel]`, `@braintrust/otel`, `@opentelemetry/sdk-node`).
-SKILL.md step 8 reads this list to drive the manifest edit and
-package-manager install; the user no longer runs `pip install` /
-`npm install` manually.
+Describes the one line the user adds to their entrypoint on the
+standalone fallback (the merge path inlines the wiring). Also carries
+the **Required deps** list — `kubit-otel` / `@kubit-ai/otel` plus any
+framework-specific extras.
 
 ### 5. Verification snippet
 
-A one-liner the user runs after setting `KUBIT_EXPORT_API_KEY` that
-emits a single test span. The skill never runs this itself — it only
-prints it.
+A one-liner the user runs after `KUBIT_EXPORT_API_KEY` is set. Emits
+a single test span. The skill never runs this itself — it only prints
+it.
 
-### `{{KUBIT_IMPORT_STATEMENT}}` placeholder
+**Source adapters** are shorter. They carry §1 (signals), §2 (role in
+the two-axis model + dispatch), §3 (usually "delegated to
+`source-otel-genai.md` §3"), §3a (usually "none specific"), §4
+(required deps; wire-in delegated), and §5 (delegated).
 
-Python import statements in §4/§5 must use `{{KUBIT_IMPORT_STATEMENT}}`
-instead of a literal `import kubit_instrumentation`. SKILL.md step 10
-substitutes the placeholder with the actual import path chosen in
-step 9 (package-relative or top-level) when printing the standalone
-wire-in instruction and the verification command. On the merge path
-the placeholder is never surfaced — the import is inlined at the
-merge site. TypeScript wire-in / verification text is not templated —
-it stays literal.
+## `{{KUBIT_IMPORT_STATEMENT}}` placeholder
+
+Python import statements in §4/§5 use `{{KUBIT_IMPORT_STATEMENT}}`
+instead of a literal `import kubit_instrumentation`. SKILL.md
+substitutes the placeholder with the actual import path chosen at
+bootstrap-placement time (package-relative or top-level). On the
+merge path the placeholder is never surfaced — the import is inlined
+at the merge site. TypeScript wire-in / verification text is not
+templated.
 
 ## Kubit SDK vs framework exporters
 
-The Kubit SDKs (`kubit-otel` / `@kubit-ai/otel`) are their own transport:
-they exchange the API key for temporary AWS Kinesis credentials and push
-records directly to Kinesis — **not** OTLP/HTTP. Framework vendors
-(Langfuse, LangSmith, Phoenix, etc.) continue to send to their own
-endpoints via whatever transport they use. The adapter's job is to stand
-up a parallel Kubit pipeline alongside the user's existing one, not to
-rewrite theirs.
+The Kubit SDKs (`kubit-otel` / `@kubit-ai/otel`) are their own
+transport: they exchange the API key for temporary AWS Kinesis
+credentials and push records directly to Kinesis — **not** OTLP/HTTP.
+Framework vendors (Langfuse, Braintrust, etc.) continue to send to
+their own endpoints via whatever transport they use. The
+adapter's job is to stand up a parallel Kubit pipeline alongside the
+user's existing one, not to rewrite theirs.
+
+Kubit SDK entry points:
+
+- Python: `configure(api_key=...)` stands up a new `TracerProvider`
+  and registers it globally, returning the provider; `attach(api_key=...)`
+  attaches `KubitSpanProcessor` to the existing global provider and
+  raises if none is registered; `KubitSpanProcessor(api_key=...)` is
+  the raw processor class for manual `add_span_processor()` / explicit
+  provider construction.
+- TypeScript: `configure({ apiKey })` stands up a new
+  `NodeTracerProvider` with `KubitSpanProcessor` in
+  `spanProcessors: [...]` and registers it globally;
+  `KubitSpanProcessor({ apiKey })` is the raw processor class. OTel
+  JS SDK v2 removed post-hoc `addSpanProcessor`, so there is no
+  `attach()` equivalent — merge happens at construction time.
