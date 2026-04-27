@@ -10,12 +10,17 @@ This skill is the discovery index for the Kubit plugin. It lists all available
 skills, explains what each one does, and routes users to the right one for their
 task. No session required — works before /kubit-connect is complete.
 
+This skill can also be used to file a support request with the kubit system - it
+is possible to file BUGs, QUESTION for asking for help and FEEDBACK for general feedback
+or feature requests, using the `help` MCP call.
+
 ## Steps
 
 1. If no specific skill is requested, display the full skill list below.
 2. If a specific skill is requested, explain it in detail with examples.
 3. If the user describes a task but is unsure which skill to use, identify
    the best match and suggest it with an example.
+4. Consider using the `help` MCP call if the request fits in is use cases.
 
 ## Skills
 
@@ -69,7 +74,9 @@ since the installed version, and runs the installer after confirmation.
 
 ## Rules
 
-- Never require a session — this skill must work before /kubit-connect is complete
+- Don't require a session — this skill must work before /kubit-connect is complete.
+  However, the `help` mcp call does require a session - call `init` first if you don't already have a session id in
+  the context and `help` needs to be called.
 - Never invent skills that do not exist
 - Keep the skill list accurate — update it whenever a new skill is added
 - One example block per skill in the summary view; full detail on specific request
