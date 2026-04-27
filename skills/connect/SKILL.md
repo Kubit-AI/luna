@@ -1,5 +1,5 @@
 ---
-name: connect
+name: kubit-connect
 description: Use this skill when starting a Kubit session or switching organization or workspace. To create a new workspace, use `/kubit-integrate`.
 ---
 

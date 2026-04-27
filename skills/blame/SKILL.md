@@ -1,5 +1,5 @@
 ---
-name: blame
+name: kubit-blame
 description: Use this skill when the user wants to find the code change responsible for a trace regression — errors, sentiment drift, escalations, intent accuracy drops — in traces ingested via Kubit. Detects which sinks (Langfuse, Braintrust) and sources (Vercel AI, OpenTelemetry GenAI, LangChain, LangSmith, OpenInference, Traceloop, Logfire, OpenAI Agents) shape the spans, then maps trace identifiers to code with user confirmation. Blame is downstream of /kubit-report and /kubit-inspect and never fetches metrics itself.
 ---
 

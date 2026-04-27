@@ -1,5 +1,5 @@
 ---
-name: update
+name: kubit-update
 description: Use this skill when the user wants to check for or install updates to the Kubit agent plugin.
 ---
 

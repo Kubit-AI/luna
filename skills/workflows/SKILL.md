@@ -1,5 +1,5 @@
 ---
-name: workflows
+name: kubit-workflows
 description: Use this skill to chain multiple Kubit skills together into multi-step workflows. 
 user_invocable: true
 ---

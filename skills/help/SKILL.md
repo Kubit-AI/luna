@@ -1,6 +1,6 @@
 ---
-name: help
-description: Use this skill when the user asks what Kubit can do, needs help, or is unsure which skill to use.
+name: kubit-help
+description: Use this skill when the user asks what Kubit can do, needs help, is unsure which skill to use or needs help from kubit support
 ---
 # /kubit-help
 

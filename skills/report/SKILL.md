@@ -1,5 +1,5 @@
 ---
-name: report
+name: kubit-report
 description: Use this skill to to view, build, or modify Kubit analytics reports — funnels, flows, retention, or queries.
 ---
 

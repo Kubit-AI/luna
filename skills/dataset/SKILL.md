@@ -1,5 +1,5 @@
 ---
-name: dataset
+name: kubit-dataset
 description: Use this skill when the user wants to add, update, remove, or list traces in a golden dataset or test suite.
 ---
 
