@@ -57,12 +57,12 @@ a specific segment of data. Returns up to 5 results by default.
     /kubit-inspect users who rephrased more than 2 times last week
 ---
 ### /kubit-report
-Finds, opens, creates, and modifies Kubit analytics reports — Grids, Queries,
+Finds, opens, and creates Kubit analytics reports — Grids, Queries,
 Funnels, Flows, and Retention reports. Use this for trends, aggregations, and
 LLM performance analysis. Searches existing reports before creating new ones.
     /kubit-report daily failed traces
     /kubit-report build a funnel for prompt → intent → tool call → response
-    /kubit-report add a filter for model=gpt-4 to report 10798
+    /kubit-report create a weekly retention report for new users
 ---
 ### /kubit-update
 Checks npm for a newer version of the Kubit agent plugin, shows what changed

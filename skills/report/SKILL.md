@@ -1,13 +1,13 @@
 ---
 name: kubit-report
-description: Use this skill to to view, build, or modify Kubit analytics reports — funnels, flows, retention, or queries.
+description: Use this skill to view, build, or search Kubit analytics reports — funnels, flows, retention, or queries.
 ---
 
 # /kubit-report
 
 ## Overview
 
-This skill finds, opens, creates, and modifies Kubit analytics reports for LLM
+This skill finds, opens, and creates Kubit analytics reports for LLM
 ops analysis — traces, sessions, intents, token cost, model performance, and user
 behavior. Supported report types: Query, Funnel, Flow, and Retention.
 Workspace and organization are managed by /kubit-connect. To drill into individual
@@ -18,7 +18,6 @@ records from a report, use /kubit-inspect.
 - The user wants to open a specific report by id
 - The user wants to search for an existing report by name or description
 - The user wants to create a new report (e.g. "build a funnel for prompt → response → user retry")
-- The user wants to modify an existing report (e.g. "add a filter for model=gpt-4", "change the date range to last 30 days", "add a step to this funnel")
 - Do NOT use for inspecting individual records — use /kubit-inspect for that
 
 ## Workflow
@@ -33,17 +32,25 @@ records from a report, use /kubit-inspect.
 
    If `$CACHE_DIR/current.json` exists, read it. If the user's message is a follow-up analysis or narrowing question about that same dataset (e.g. references "those", "the ones", "that set", or asks for a different cut of the data just shown), **skip the MCP call** and spawn `kubit-analyst` with `Dataset path: $CACHE_DIR/current.csv` plus the cached manifest's question and columns as Context. Otherwise proceed below — a new MCP call will replace this session's cached dataset. When unsure, prefer a fresh fetch.
 3. **Determine intent.** Before calling the MCP, identify what the user wants:
-   - **Find/open** — user references a report by id, name, or description
-   - **Create** — user uses explicit creation language: "create", "build","make", "new", "set up", "give me a..." — or a search returned zero matches and the user confirmed they want to create
-   - **Modify** — user references an existing report id and describes a change
-   - **Ambiguous** — always search first. 
-4. **Pass the query through.** Send the user's wording directly to `create_report`. Do not pre-parse, resolve, or reshape parameters — the MCP handles report id lookup, search matching, type inference, creation, and modification.
+   - **Find/open** — user references a report by numeric id
+   - **Search** — user references a report by name or description
+   - **List recent** — user asks for "recent reports", "what reports do I have", or similar without naming one
+   - **Create** — user uses explicit creation language: "create", "build", "make", "new", "set up", "give me a..." — or a search returned zero matches and the user confirmed they want to create
+   - **Refresh** — user explicitly asks to re-run or bypass cache for a known report id
+   - **Ambiguous** — always search first.
+4. **Call the MCP based on intent.** Pass the user's wording through directly — do not pre-parse or reshape parameters.
+   - **Find/open (by id)** → `get_report(reportId=<id>)` returns the report's summary (status, urls, failure message).
+   - **Search (by name)** → `get_report(searchTerm="<query>")` returns up to 10 name matches. One match → render. Multiple → compact list, ask the user to pick.
+   - **List recent** → `get_report()` with neither `reportId` nor `searchTerm` returns the 10 most recent reports.
+   - **Refresh** → `get_report(reportId=<id>, refresh=true)` forces re-execution, bypassing cached data. Only on explicit user request — it may be slow.
+   - **Create** → `create_report(query="<user wording>")`. The MCP classifies the query into the right type (query, funnel, flow, retention, cohort sample) and builds it.
+
+   `reportId` and `searchTerm` are mutually exclusive — never pass both.
 5. **Route the response.** The MCP returns report data. For operations that produce viewable data (opening or viewing a report), the MCP's summary may be based on a limited sample. Route through the kubit-analyst when the full dataset is available.
 
    **Decision rule:**
-   - **Create, search, modify operations** → Present MCP response directly (no kubit-analyst).
+   - **Create and search operations** → Present MCP response directly (no kubit-analyst).
    - **Multiple search matches** → Compact list with id, name, type. Ask user to pick.
-   - **Modified report** → Return new id and note the original is unchanged.
    - **Zero matches** → Offer to broaden search or create.
    - **Errors / regressions visible in the report** → After presenting the results, add a one-line natural-language suggestion: "If you want to find the code change behind this, try /kubit-blame." Do not run /kubit-blame yourself — let the user decide.
    - **Report data returned + export URL** → Spawn kubit-analyst on the full dataset (see below).
@@ -70,20 +77,20 @@ records from a report, use /kubit-inspect.
       - **Context:** The original question and column list from `$CACHE_DIR/current.json`
    3. Present findings conversationally.
 
-6. **Offer next steps.** Ask if the user wants to refine or modify the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
+6. **Offer next steps.** Ask if the user wants to refine the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
 
 ## Rules
-- **Always render the report as `[<display>](<reportUrl>)`.** Whenever the MCP response contains `display` and `reportUrl` fields, present the report as a markdown link using `display` as the link text and `reportUrl` as the href. Never show the URL bare, and never present a report identifier without the link when both fields are available. Applies to every branch that surfaces a report — open, create, modify, and each row of a multi-match list.
+- **Always render the report as `[<display>](<reportUrl>)`.** Whenever the MCP response contains `display` and `reportUrl` fields, present the report as a markdown link using `display` as the link text and `reportUrl` as the href. Never show the URL bare, and never present a report identifier without the link when both fields are available. Applies to every branch that surfaces a report — open, create, and each row of a multi-match list.
 - Always search before creating when intent is ambiguous
-- Modifications always create a new report id — the original is always preserved
-- Omit `limit` from the MCP call for create and modify operations
 - Never create multiple reports in one turn without confirming first
+- Only set `refresh: true` on `get_report` when the user explicitly asks to re-run or bypass the cache
 - Relay MCP clarification questions verbatim rather than guessing
 - When the report surfaces errors, escalations, sentiment drift, or a regression, suggest `/kubit-blame` as a next step — but never invoke it automatically.
 
 ## Error Handling
 
 - Switch org/workspace → "Run /kubit-connect to switch."
+- `get_report` id not found → "No report with id <id>. Want me to search by name instead?"
 - No match → "No report matched. Want me to broaden the search or create a new one?"
 - Ambiguous match → Show top results and ask the user to pick.
 - MCP failure → "Could not connect to agent.kubit.ai/mcp. Check your network."
@@ -108,11 +115,6 @@ Output: Funnel created — report data returned. Offer to drill into results
 **Create with inferred type:**
 Input: /kubit-report create a weekly retention report for users whose first session had zero errors
 Output: Retention report created — report data returned.
-
-**Modify an existing report:**
-Input: /kubit-report add a filter for model=gpt-4 to report 10798
-Output: Modified report saved as new id. Original rpt_10798 unchanged.
-        New report data returned.
 
 **Zero results:**
 Input: /kubit-report latency by provider
