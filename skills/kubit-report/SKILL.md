@@ -46,7 +46,7 @@ records from a report, use /kubit-inspect.
    - **Create** → `create_report(query="<user wording>")`. The MCP classifies the query into the right type (query, funnel, flow, retention, cohort sample) and builds it.
 
    `reportId` and `searchTerm` are mutually exclusive — never pass both.
-5. **Route the response.** The MCP returns report data. For operations that produce viewable data (opening or viewing a report), the MCP's summary may be based on a limited sample. Route through the kubit-analyst when the full dataset is available.
+5. **Route the response.** The MCP returns report data. For operations that produce viewable data (opening or viewing a report), full-dataset analysis via the kubit-analyst is required whenever an export URL is available.
 
    **Decision rule:**
    - **Create and search operations** → Present MCP response directly (no kubit-analyst).
@@ -54,7 +54,7 @@ records from a report, use /kubit-inspect.
    - **Zero matches** → Offer to broaden search or create.
    - **Errors / regressions visible in the report** → After presenting the results, add a one-line natural-language suggestion: "If you want to find the code change behind this, try /kubit-blame." Do not run /kubit-blame yourself — let the user decide.
    - **Report data returned + export URL** → Spawn kubit-analyst on the full dataset (see below).
-   - **Report data returned + no export URL** → Present MCP summary. Add a note: "This summary is based on the MCP's limited sample — CSV export was not available for full-dataset analysis."
+   - **Report data returned + no export URL** → Present MCP summary. Add a note: "Full-dataset analysis isn't available for this report (no CSV export)."
    - Relay any MCP clarification questions verbatim.
 
    **Kubit-analyst spawn procedure** (for report data + export URL):
@@ -65,9 +65,8 @@ records from a report, use /kubit-inspect.
       - **Export URL:** The export URL from the MCP response text
       - **Session key:** `$SESSION_KEY` (from step 2 — tells the analyst where to cache)
       - **Source:** `report` (recorded in the dataset manifest)
-      - **MCP summary:** The MCP's text response — the analyst uses this as context, flags discrepancies with full-dataset findings
       - **Context:** The report type, any filters applied, and relevant column descriptions
-   3. Present the kubit-analyst's findings conversationally.
+   3. Relay the analyst's findings as returned (headline + compact table + brief notable findings). Don't expand into prose.
 
    **Cached-dataset spawn** (for step 2 follow-ups that reuse `$CACHE_DIR/current.csv`):
    1. Check prerequisites via Bash (`command -v uv`, `python3 --version`). If neither is available, tell the user and stop — there's no MCP fallback on this path.
