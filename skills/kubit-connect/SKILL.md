@@ -7,10 +7,22 @@ description: Use this skill when starting a Kubit session or switching organizat
 
 ## Overview
 
-This skill sets up the Kubit context for the current session. This requires the user to have an
-established connection to the Kubit Agent MCP server.
+This skill pins the current Kubit org/workspace for the session by
+calling `init` or `switch` and capturing the returned `SESSION` value.
 
-You will get a SESSION: parameter as part of the `init` and `switch` response. This parameter is required when calling all other MCP calls.
+Two distinct things must be in place for Kubit MCP calls to work, and
+this skill only owns the second:
+
+1. **MCP authentication** — a one-time browser OAuth sign-in against
+   the Kubit Agent MCP server. Driven by Claude Code's built-in
+   `/mcp` command (or, in environments without it, by opening an auth
+   URL the MCP surfaces). Until this completes, every Kubit MCP call
+   — including `init` — fails with an auth error. See *Pre-flight:
+   MCP authentication* below.
+2. **Kubit session** — the `SESSION` value returned by `init` and
+   `switch`. Pass it on every subsequent Kubit MCP call. It is **not**
+   an auth token; it only identifies which org/workspace the calls
+   operate against. If lost, just call `init` or `switch` again.
 
 ## When to Use
 
@@ -32,7 +44,7 @@ Workspace **creation** is not in scope here — route the user to
 ## Pre-flight: check for updates
 
 Run this once at the start of the first-time init flow (Example 1). Skip for
-switch.
+switch. This check does not require MCP auth.
 
 ```bash
 CONFIG_DIR="{{KUBIT_CONFIG_DIR}}"
@@ -48,13 +60,39 @@ fi
 ```
 
 Stay silent on every other branch (already latest, ahead of latest, npm unreachable).
-Always continue to `init` regardless — this notice is informational only.
+Always continue regardless — this notice is informational only.
+
+## Pre-flight: MCP authentication
+
+Run on every entry to this skill, after the update check.
+
+Attempt the `init` MCP tool. If it succeeds, MCP auth is already
+established — capture the response and continue with the rest of the
+flow (Example 1 or 2; for `switch`, you may instead call `switch`
+directly and treat its auth error the same way).
+
+If the call fails with an auth/unauthenticated error:
+
+- **Claude Code:** ask the user to run `/mcp`, complete sign-in for
+  the Kubit MCP server, then re-run `/kubit-connect`.
+- **Cursor:** Cursor typically prompts the user inline to sign in to
+  the MCP server on first use. Ask the user to confirm that prompt,
+  then re-run `/kubit-connect`.
+- **Fallback (any environment, or if the above doesn't fire):** if
+  the MCP error response surfaces an auth URL, present it verbatim
+  and ask the user to open it in their browser to complete sign-in.
+  You may also `open <url>` via Bash to launch the browser — but
+  still ask the user to confirm completion before retrying.
+
+Do not retry `init` in a loop. Surface the instructions and exit 0;
+the user re-runs `/kubit-connect` when sign-in is done.
 
 ## Rules
 
 - Skip organization and workspace prompts if the user has only one of each
-- Do not proceed to other skills if authentication is incomplete, or you don't have a 'session' obtained from `init` or `switch`.
-- Do not persistently store the session token, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
+- Do not proceed to other skills if MCP authentication is not established — route the user to `/mcp` (Claude Code) or the auth URL paste flow (Cursor / fallback) per *Pre-flight: MCP authentication*.
+- Do not proceed to other skills if you don't have a `SESSION` obtained from `init` or `switch` — call one of them first.
+- Do not persistently store the session, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
 - Refresh session after 1 hour idle (not a security timeout — just re-pins the workspace)
 - orgId and workspaceId must always be passed as a pair to `switch`
 
@@ -63,11 +101,13 @@ Always continue to `init` regardless — this notice is informational only.
 **Example 1 — First time access:**
 Input: /kubit-connect
 
-First, run the **Pre-flight: check for updates** step above.
+Run **Pre-flight: check for updates**, then **Pre-flight: MCP
+authentication**. If `init` fails with an auth error, follow that
+section's guidance and stop.
 
-Then call the `init` MCP tool, you will get information about the current user, organization and workspace.
-
-Also get the list of other available organizations and workspaces.
+The successful `init` response gives you the current user,
+organization, and workspace, plus the list of other available
+organizations and workspaces.
 
 **Example 2 — Switch org / workspace:**
 Input: /kubit-connect switch workspace <workspace id>
