@@ -286,10 +286,10 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
          Fall back to `"unknown@unknown"` if either command fails.
        - Trim to 255 chars; if the composed value would be empty,
          substitute `"kubit-integrate"`.
-     - Show a single review line — `note=<value>` — and let the user
-       press enter to accept, or supply a free-text override
-       (1–255 chars). Re-validate length on user input; re-prompt once
-       on violation.
+     - Print the computed note as a single informational line —
+       `note=<value>` — so the user can see the label that will appear
+       in the dashboard. Do not prompt for confirmation or override;
+       pass the computed value straight to `workspace_mint_key`.
      - Call `workspace_mint_key { session, note }` against whichever
        session step 4 produced (the original session for the `used`
        branch, the one returned by `switch` for `switched`, or the one
@@ -849,12 +849,10 @@ messages are in the sub-bullets.
      *"Workspace '<name>' created but key mint failed — re-run
      `/kubit-integrate`, or use `/kubit-connect switch` to reuse the
      workspace."*
-   - `workspace_mint_key` rejects `note` on length (>255 chars after a
-     user override) → re-prompt for a shorter note once; on a second
-     violation exit 0 with *"Note too long — re-run `/kubit-integrate`
-     when ready."* A schema error on missing/empty `note` is a skill
-     bug; surface the server message verbatim and exit 0 without
-     retry.
+   - `workspace_mint_key` rejects `note` (length or empty) → this is a
+     skill bug — the computed default is always trimmed to 255 chars
+     with a non-empty fallback. Surface the server message verbatim
+     and exit 0 without retry.
    - Mint response missing the key field → fatal: *"workspace_mint_key
      succeeded but no key in response — report to #kubit."*
    - Paste branch: empty input twice → exit 0 with *"No key provided —
