@@ -33,18 +33,17 @@ aggregate analytics and trends, use /kubit-report.
 
    If `$CACHE_DIR/current.json` exists, read it. If the user's message is a follow-up analysis or narrowing question about that same dataset (e.g. references "those", "the ones", "that set", or asks for a different cut of the data just shown), **skip the MCP call** and spawn `kubit-analyst` with `Dataset path: $CACHE_DIR/current.csv` plus the cached manifest's question and columns as Context. Otherwise proceed to the MCP call below — it will replace this session's cached dataset. When unsure whether the question is a follow-up, prefer a fresh fetch.
 3. **Pass the query through.** Send the user's wording directly to `inspect`. Do not pre-parse, resolve, or reshape parameters — the MCP handles entity type, filters, schema, and date range. If the user references a prior report or pastes a report URL, include that context in the query string. If the MCP asks which entity type to query (users, sessions, traces, events), present the options to the user rather than guessing.
-4. **Route the response.** The MCP returns a text response containing a summary and selected rows. For multi-result queries with an export URL, full-dataset analysis via the kubit-analyst is required — always spawn it.
+4. **Route the response.** For data-fetching queries the MCP returns a `## Created Analysis` metadata block (id, display, reportUrl, status) and an `exportUrl` pointing to the full dataset CSV. The MCP does **not** return a narrative summary or inline row data — all dataset content lives in the CSV. Special cases (entity-type clarification, zero results, MCP errors) return short text instead of the metadata block.
 
    **Decision rule:**
-   - **Single entity** (lookup by id, one result) → Present MCP summary as prose.
-   - **Navigation** ("show me their sessions", "drill into this trace") → Present MCP summary as prose.
+   - **MCP returned an exportUrl** (any data result, single- or multi-entity) → Spawn kubit-analyst on the dataset (see procedure below). Present its findings.
    - **Entity-type clarification** (MCP asks which type to query) → Relay options to user directly.
-   - **Multi-result + export URL** → Spawn kubit-analyst on the full dataset (see procedure below). Present its findings table-first.
-   - **Multi-result + no export URL** → Present MCP summary directly. Add a note: "Full-dataset analysis isn't available for this query (no CSV export)."
+   - **Zero results** (text response, no exportUrl) → Surface the message and suggest broadening filters or time range.
+   - **MCP error** (`isError: true`) → Surface the failure as-is. Do not fabricate data.
 
-   **Single entity / navigation formatting:**
-   - Lead with the key finding or answer sentence from the MCP.
-   - Single entity: summarize the key fields conversationally. Include cost, latency, tokens, error info, and status. Don't just list fields — explain what they mean for this entity.
+   **Output formatting (analyst path):**
+   - Single-row dataset: ask the analyst for a conversational prose summary of the key fields (cost, latency, tokens, error info, status), not a table. Don't just list fields — explain what they mean for this entity.
+   - Multi-row dataset: ask the analyst for a table-first summary (see "Multi-result presentation" below).
    - Always state the total match count vs. displayed count (e.g. "Showing 5 of 47") when relevant.
 
    **Multi-result presentation (analyst output):**
