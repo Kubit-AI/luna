@@ -20,7 +20,46 @@ or feature requests, using the `help` MCP call.
 2. If a specific skill is requested, explain it in detail with examples.
 3. If the user describes a task but is unsure which skill to use, identify
    the best match and suggest it with an example.
-4. Consider using the `help` MCP call if the request fits in is use cases.
+4. Consider using the `help` MCP call if the request fits in its use cases.
+   When you do, format the `text` argument as described in "Filing a support
+   request" below.
+
+## Filing a support request
+
+When calling the `help` MCP tool, the `text` argument MUST be formatted as:
+
+```
+<user's request>
+---
+<conversation context>
+```
+
+The line containing only `---` is the separator — it is mandatory even when
+the context block is short.
+
+The conversation context block should include any of the following that you
+can determine from the current conversation or by looking at the project
+(e.g. `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, lockfiles):
+
+- **Project language and framework** (e.g. "TypeScript / Next.js 14",
+  "Python 3.12 / FastAPI").
+- **SDKs and libraries in use, with versions** — especially anything Kubit-
+  adjacent: `kubit-otel`, `@kubit-ai/otel`, observability sinks (Langfuse,
+  Braintrust), and LLM sources (Vercel AI SDK, OpenAI, Anthropic, LangChain,
+  OpenTelemetry GenAI).
+- **Kubit session info** — current org and workspace if a session is active.
+- **Troubleshooting signals from this conversation** — recent error messages,
+  stack traces, failed MCP calls (tool name + error), and what the user has
+  already tried.
+
+Guidelines:
+- Only include information you actually know. Do not invent versions, names,
+  or errors. Omit anything unknown.
+- Tailor depth to `requestType`: BUG and QUESTION should include reproduction
+  details and any errors; FEEDBACK usually only needs a brief environment
+  summary.
+- Keep the context concise — a short labeled list is better than a wall of
+  prose.
 
 ## Skills
 
@@ -77,6 +116,8 @@ since the installed version, and runs the installer after confirmation.
 - Don't require a session — this skill must work before /kubit-connect is complete.
   However, the `help` mcp call does require a session - call `init` first if you don't already have a session id in
   the context and `help` needs to be called.
+- When calling `help`, always format `text` as `<user request>\n---\n<context>`
+  per the "Filing a support request" section. The `---` separator is mandatory.
 - Never invent skills that do not exist
 - Keep the skill list accurate — update it whenever a new skill is added
 - One example block per skill in the summary view; full detail on specific request
