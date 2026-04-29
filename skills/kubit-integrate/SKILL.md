@@ -63,8 +63,34 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
    `pyproject.toml`, `requirements.txt`, `go.mod`, and a shallow scan
    of top-level imports.
 
-   Emit two sets: `sinks_detected ⊆ {langfuse, braintrust}` and
-   `sources_detected ⊆ {vercel-ai, otel-genai, langchain}`.
+   Emit three sets: `sinks_detected ⊆ {langfuse, braintrust}`,
+   `sources_detected ⊆ {vercel-ai, otel-genai, langchain}`, and
+   `direct_llm_sdks_detected ⊆ {anthropic, openai, google-genai}`.
+
+   **Direct LLM SDK signals** (declared deps and first-party imports
+   only — never lockfile entries; wrappers like `@langchain/anthropic`
+   declare these SDKs as runtime deps and would pull them into the
+   lockfile without the user using them directly):
+   - **`anthropic`** — `@anthropic-ai/sdk` in `package.json`
+     `dependencies` / `devDependencies`; `anthropic` in
+     `pyproject.toml` / `requirements.txt` / `Pipfile`;
+     `from "@anthropic-ai/sdk"` /
+     `import Anthropic from "@anthropic-ai/sdk"` in
+     `.ts` / `.tsx` / `.js` / `.mjs`; `from anthropic import` /
+     `import anthropic` in `.py`.
+   - **`openai`** — the bare `openai` package in `package.json` deps
+     (not `@ai-sdk/openai` / `@langchain/openai`); `openai` in Python
+     manifests; `from "openai"` / `import OpenAI from "openai"` in
+     TS/JS; `from openai import` / `import openai` in `.py`.
+   - **`google-genai`** — `@google/generative-ai` or `@google/genai`
+     in `package.json` deps; `google-generativeai`, `google-genai`,
+     or `google-cloud-aiplatform` in Python manifests; matching
+     `from "@google/…"` / `from google.generativeai import` /
+     `from google import genai` imports.
+
+   These signal that the codebase calls a provider SDK directly
+   without a high-level wrapper. They feed the step 2 gate that
+   exits early when no supported source is present.
 
    **Detection traps** (call out in the confirmation when they
    would otherwise tip the decision):
@@ -116,6 +142,20 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      as `otel-genai`, treat the non-LangChain source as the sole
      source and fall through to the normal no-sink branch; LangChain
      produces no spans in that run.)
+   - `direct_llm_sdks_detected != [] && sources_detected == []` →
+     print *"Detected direct LLM SDK usage (`<comma-separated list
+     of detected SDKs>`) but no supported source. Kubit ingests
+     OpenTelemetry spans, and direct calls to the Anthropic /
+     OpenAI / Google SDKs do not emit OTel spans on their own.
+     `/kubit-integrate` only wires apps whose LLM calls already
+     flow through one of: Vercel AI SDK (`ai` / `@ai-sdk/*`),
+     OpenTelemetry GenAI semantic conventions, or LangChain via a
+     Langfuse or Braintrust callback handler. Move your LLM calls
+     under one of those wrappers and re-run."* and exit 0. No
+     session touch, no workspace, no writes. The gate is
+     sink-agnostic — fires whether or not Langfuse / Braintrust are
+     present, because neither produces OTel spans from direct
+     provider SDK calls.
    - `len(sinks_detected) > 1` → list them and ask the user to pick
      one. Exit 0 if the user aborts. Record the chosen sink as
      `sink`; all others are ignored for the run.
@@ -706,6 +746,8 @@ messages are in the sub-bullets.
 1. **Detection-phase exits.** No session touch, no workspace, no writes.
    - Neither sinks nor sources detected → print the friendly
      "no tracing detected" message (step 2) and exit 0.
+   - Direct LLM SDK detected with no supported source → print the
+     "direct SDK, no source" message from step 2 and exit 0.
    - Confirmation declined → exit 0.
    - Multi-sink prompt aborted → exit 0.
    - TS/Node path with `@opentelemetry/sdk-trace-base` (or
@@ -802,6 +844,14 @@ Output: *"No LLM tracing detected in this repo. `/kubit-integrate`
 recognises sinks (Langfuse, Braintrust) and sources (Vercel AI,
 OpenTelemetry GenAI). Add one and re-run, or reach out on #kubit."*
 Exit 0.
+
+**Direct SDK, no source.**
+Input: *"hook this Next.js app up to Kubit"*
+Output: Detects `@anthropic-ai/sdk` and `langfuse` in `package.json`;
+no `ai` / `@ai-sdk/*`, no LangChain, no OTel GenAI markers. Prints
+*"Detected direct LLM SDK usage (`anthropic`) but no supported
+source. ..."* and exits 0. No `/kubit-connect` invocation, no
+workspace, no `.env.local` write.
 
 **`.env` not gitignored.**
 Input: *"turn on Kubit"*
