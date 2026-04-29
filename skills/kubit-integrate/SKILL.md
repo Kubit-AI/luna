@@ -260,15 +260,59 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        session pinned to the newly created workspace; adopt it.
        `workspace_action = created`.
 
-5. **Mint the ingestion key.**
-   - Call `workspace_mint_key { session }` against whichever session
-     step 4 produced (the original session for the `used` branch, the
-     one returned by `switch` for `switched`, or the one returned by
-     `workspace_create` for `created`). This is the call that produces
-     the value `KUBIT_EXPORT_API_KEY` expects.
-   - Hold the minted key in memory only. Never log it, never echo it
-     back to the user. The only places it is allowed to land are the
-     env-file write in step 6 or the fallback `export` line.
+5. **Obtain the ingestion key.** Two branches: mint a fresh key against
+   the workspace, or accept an existing key the user already has (e.g.
+   issued from the Kubit UI). Record the choice as `key_source` ∈
+   {`minted`, `pasted`} for the close-out in step 9.
+
+   - **Prompt for the key source.** Print the just-selected workspace
+     so the user can sanity-check before pasting, then offer numbered
+     options. Default on empty input is option 1.
+
+     ```
+     Kubit workspace: "<name>" (org "<org-name>")
+     How should we get the ingestion key?
+       1. Mint a new key for this workspace (default).
+       2. Paste an existing key you already have.
+     ```
+
+   - **Branch: mint a new key (`key_source = minted`).**
+     - Compute a default note as `"<project_name> by <user@hostname>"`:
+       - `<project_name>` = `basename "$PWD"`. The CWD basename is what
+         the user sees in their shell prompt and is the most legible
+         label in the dashboard. If `basename` fails, fall back to the
+         literal `"kubit"`.
+       - `<user@hostname>` = `whoami`@`hostname -s` (short hostname).
+         Fall back to `"unknown@unknown"` if either command fails.
+       - Trim to 255 chars; if the composed value would be empty,
+         substitute `"kubit-integrate"`.
+     - Show a single review line — `note=<value>` — and let the user
+       press enter to accept, or supply a free-text override
+       (1–255 chars). Re-validate length on user input; re-prompt once
+       on violation.
+     - Call `workspace_mint_key { session, note }` against whichever
+       session step 4 produced (the original session for the `used`
+       branch, the one returned by `switch` for `switched`, or the one
+       returned by `workspace_create` for `created`). The `note` field
+       is required by the server (1–255 chars, non-empty).
+     - Hold the minted key in memory only. Never log it, never echo it
+       back to the user. The only places it is allowed to land are the
+       env-file write in step 6 or the fallback `export` line.
+
+   - **Branch: paste an existing key (`key_source = pasted`).**
+     - Surface the workspace-scope warning verbatim before prompting:
+       *"Kubit API keys are scoped to a single workspace. Make sure the
+       key you paste was issued for `"<name>"` (org `"<org-name>"`) — a
+       key from a different workspace will land traces in the wrong
+       place with no error at ingest time."*
+     - Prompt for the key. Accept the value as-is; reject only
+       obviously empty input (re-prompt once, then exit 0 with
+       *"No key provided — re-run `/kubit-integrate` when ready."*).
+       Do not echo the value back, do not log it, and do not call any
+       MCP tool to validate it — workspace-scope correctness is the
+       user's responsibility, gated by the warning above.
+     - Hold the pasted value in the same in-memory slot the minted key
+       would occupy; step 6 is unchanged.
 
 6. **Write the API key and endpoint to the project's env config.**
    - Resolve repo root via `git rev-parse --show-toplevel`. If not a git
@@ -589,10 +633,17 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
 
 9. **Close-out.** Print exactly three blocks, in this order:
 
-   1. A single status line, branched on step 4's `workspace_action`:
-      - `created`  → `Kubit workspace "<name>" created; API key written to <file>`
-      - `switched` → `Kubit workspace "<name>" selected; new API key written to <file>`
-      - `used`     → `Kubit workspace "<name>" selected; new API key written to <file>`
+   1. A single status line, branched on step 4's `workspace_action`
+      and step 5's `key_source`. Drop the word "new" on the `pasted`
+      branch — the key was supplied by the user, not freshly minted.
+      - `key_source == minted`:
+        - `created`  → `Kubit workspace "<name>" created; API key written to <file>`
+        - `switched` → `Kubit workspace "<name>" selected; new API key written to <file>`
+        - `used`     → `Kubit workspace "<name>" selected; new API key written to <file>`
+      - `key_source == pasted`:
+        - `created`  → `Kubit workspace "<name>" created; API key written to <file>`
+        - `switched` → `Kubit workspace "<name>" selected; API key written to <file>`
+        - `used`     → `Kubit workspace "<name>" selected; API key written to <file>`
 
       Substitute the chosen env file name; use the fallback wording
       when the write was skipped.
@@ -690,6 +741,12 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
   received. The detected env file is the only write target; the
   shell-export fallback prints it exactly once (step 6) and never
   again.
+- A pasted `KUBIT_EXPORT_API_KEY` (step 5's `pasted` branch) is treated
+  identically to a minted one once accepted: never echoed, never
+  logged, written only to the detected env file or the print-export
+  fallback. The skill does not validate the pasted key against the MCP
+  server — workspace-scope correctness is the user's responsibility,
+  surfaced via the step 5 warning.
 - Never call Kubit ingestion from inside the skill. No test spans.
   No connectivity probes. The user runs the verification command
   themselves.
@@ -778,8 +835,17 @@ messages are in the sub-bullets.
      *"Workspace '<name>' created but key mint failed — re-run
      `/kubit-integrate`, or use `/kubit-connect switch` to reuse the
      workspace."*
+   - `workspace_mint_key` rejects `note` on length (>255 chars after a
+     user override) → re-prompt for a shorter note once; on a second
+     violation exit 0 with *"Note too long — re-run `/kubit-integrate`
+     when ready."* A schema error on missing/empty `note` is a skill
+     bug; surface the server message verbatim and exit 0 without
+     retry.
    - Mint response missing the key field → fatal: *"workspace_mint_key
      succeeded but no key in response — report to #kubit."*
+   - Paste branch: empty input twice → exit 0 with *"No key provided —
+     re-run `/kubit-integrate` when ready."* No env-file write, no
+     install, no wiring.
 
 5. **Write-phase issues.** Degrade gracefully; never block
    instrumentation once the key is in hand.
