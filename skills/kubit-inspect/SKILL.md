@@ -33,22 +33,25 @@ aggregate analytics and trends, use /kubit-report.
 
    If `$CACHE_DIR/current.json` exists, read it. If the user's message is a follow-up analysis or narrowing question about that same dataset (e.g. references "those", "the ones", "that set", or asks for a different cut of the data just shown), **skip the MCP call** and spawn `kubit-analyst` with `Dataset path: $CACHE_DIR/current.csv` plus the cached manifest's question and columns as Context. Otherwise proceed to the MCP call below — it will replace this session's cached dataset. When unsure whether the question is a follow-up, prefer a fresh fetch.
 3. **Pass the query through.** Send the user's wording directly to `inspect`. Do not pre-parse, resolve, or reshape parameters — the MCP handles entity type, filters, schema, and date range. If the user references a prior report or pastes a report URL, include that context in the query string. If the MCP asks which entity type to query (users, sessions, traces, events), present the options to the user rather than guessing.
-4. **Route the response.** The MCP returns a text response containing a summary and selected rows. The MCP's summary is based on a limited sample (~100 traces) — when the full dataset is larger, route through the kubit-analyst for accurate analysis.
+4. **Route the response.** The MCP returns a text response containing a summary and selected rows. For multi-result queries with an export URL, full-dataset analysis via the kubit-analyst is required — always spawn it.
 
    **Decision rule:**
-   - **Single entity** (lookup by id, one result) → Present MCP summary directly.
-   - **Navigation** ("show me their sessions", "drill into this trace") → Present MCP summary directly.
+   - **Single entity** (lookup by id, one result) → Present MCP summary as prose.
+   - **Navigation** ("show me their sessions", "drill into this trace") → Present MCP summary as prose.
    - **Entity-type clarification** (MCP asks which type to query) → Relay options to user directly.
-   - **Multi-result + export URL** → Spawn kubit-analyst on the full dataset (see below).
-   - **Multi-result + no export URL** → Present MCP summary. Add a note: "This summary is based on the MCP's limited sample — CSV export was not available for full-dataset analysis."
+   - **Multi-result + export URL** → Spawn kubit-analyst on the full dataset (see procedure below). Present its findings table-first.
+   - **Multi-result + no export URL** → Present MCP summary directly. Add a note: "Full-dataset analysis isn't available for this query (no CSV export)."
 
-   **Direct presentation formatting** (for single entity, navigation, no export URL):
+   **Single entity / navigation formatting:**
    - Lead with the key finding or answer sentence from the MCP.
    - Single entity: summarize the key fields conversationally. Include cost, latency, tokens, error info, and status. Don't just list fields — explain what they mean for this entity.
-   - Multiple entities: summarize the pattern first (what's broken, expensive, or slow), then list individual results as a compact numbered list with one line per entity showing id, status, cost, latency, and timestamp.
-   - Always state the total match count vs. displayed count (e.g. "Showing 5 of 47").
+   - Always state the total match count vs. displayed count (e.g. "Showing 5 of 47") when relevant.
 
-   **Kubit-analyst spawn procedure** (for multi-result + export URL):
+   **Multi-result presentation (analyst output):**
+   - The analyst returns a table-first summary: one headline sentence, a compact markdown table of the selected rows (short id, status, cost, latency, timestamp, plus one entity-specific column), and a brief list of notable findings. Relay it as-is — do not expand into multi-paragraph narrative.
+   - End your reply with a one-line offer for deeper analysis (failure clusters, outliers, latency tail) before the standard next-step suggestions.
+
+   **Kubit-analyst spawn procedure** (multi-result with export URL):
    1. Check prerequisites via Bash:
       - Run `command -v uv` and `python3 --version`. If neither `uv` nor `python3` is available, tell the user: "Full-dataset analysis requires uv or Python 3, which are not installed on this system." Then fall back to the MCP summary. The kubit-analyst sub-agent handles environment setup and pandas installation internally.
    2. Spawn the `kubit-analyst` sub-agent with a prompt containing:
@@ -56,9 +59,8 @@ aggregate analytics and trends, use /kubit-report.
       - **Export URL:** The export URL from the MCP response text
       - **Session key:** `$SESSION_KEY` (from step 2 — tells the analyst where to cache)
       - **Source:** `inspect` (recorded in the dataset manifest)
-      - **MCP summary:** The MCP's text response — the analyst uses this as context and starting point, flags discrepancies with full-dataset findings
       - **Context:** Any relevant column descriptions or filter criteria from the MCP response
-   3. Present the kubit-analyst's findings conversationally. Use the same formatting rules as the direct presentation path — lead with key finding, contextualize numbers, use prose not tables.
+   3. Relay the analyst's findings as returned: headline + compact table + brief notable findings. Don't expand into prose.
 
    **Cached-dataset spawn** (for step 2 follow-ups that reuse `$CACHE_DIR/current.csv`):
    1. Check prerequisites via Bash the same way as above (`command -v uv`, `python3 --version`). If neither is available, tell the user so and stop — there's no MCP fallback on this path since we're deliberately skipping the MCP.
@@ -66,7 +68,7 @@ aggregate analytics and trends, use /kubit-report.
       - **Question:** The user's follow-up question
       - **Dataset path:** `$CACHE_DIR/current.csv` (already session-scoped)
       - **Context:** The original question and column list from `$CACHE_DIR/current.json`, so the analyst knows what the dataset represents
-   3. Present findings conversationally, same as above.
+   3. Relay the analyst's findings the same way as above (headline + table + notable findings).
 
 5. **Offer next steps based on entity type.**
    - User → "Want to see sessions or traces for [user email/id]?"
@@ -76,11 +78,11 @@ aggregate analytics and trends, use /kubit-report.
    - Errors / failures among the returned traces → After the entity-specific offer, add a one-line suggestion: "If you want to find the code change behind these failures, try /kubit-blame." Do not run it yourself.
 
 ## Rules
-- Summarize when returning multiple results - never list raw fields without context
-- Always show total match count alongside displayed results
+- For multi-result output, lead with the analyst's compact table; keep narrative brief and reserve deeper analysis for when the user asks for it.
+- For single-entity and navigation output, use conversational prose with inline numbers, not tables.
+- Always show total match count alongside displayed results.
 - Trust the MCP's row selection — don't truncate or pad results client-side.
 - The MCP is stateless — every call must include all necessary identifiers. When the user follows up on a previous result, extract the relevant entity id from the prior response and include it explicitly in the new query.
-- Do not restructure the MCP's stats into tables, bullet lists, or other rigid formats unless the user asks for a specific format. Use conversational prose with inline numbers.
 - When inspected traces contain failures, errors, or unexpected behavior, suggest `/kubit-blame` as a next step — but never invoke it automatically.
 
 ## Error Handling
@@ -100,13 +102,14 @@ Output: User summary — cost, latency, tokens, top errors, session count, top i
 
 **Navigate from user into sessions:**
 Input: show me sessions for alex@acme.com
-Output: Pattern summary — failure rate, avg cost, avg latency, common errors.
+Output: One-line headline (count, time window, failure split), then a compact table of sessions
+        (id, status, cost, latency, timestamp). Trailing offer to analyze further.
 
 **Failed traces with filters:**
 Input: /kubit-inspect failed traces with intent Checkout since yesterday
-Output: Pattern summary — avg cost, avg latency, avg tokens, common error, common model.
-        List with cost, latency, intent, and timestamp per trace. Total count shown.
-        Offer to report the trend over time.
+Output: Headline sentence with total count and time window, then a compact table of traces
+        (id, status, cost, latency, intent, timestamp). Total match count vs. displayed shown.
+        Trailing offer: analyze patterns / drill into a trace / try /kubit-blame for failures.
 
 **Drill into a report segment:**
 Input: inspect the users who dropped off at payment in that funnel
