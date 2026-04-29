@@ -90,6 +90,47 @@ gate the import on `process.env.NEXT_RUNTIME === 'nodejs'` /
 top-level `import '@kubit-ai/otel'` or `configure(...)` call in a
 file that can run in Edge.
 
+**Gotcha — Next.js HTTP span orphans AI SDK children.** Next.js's
+built-in OTel auto-instrumentation activates the moment any global
+`TracerProvider` is registered (which `configure()` does). The route
+handler then emits an HTTP span (`POST /…`, `scope=next.js`) and
+every Vercel AI SDK span (`streamText`, tool calls, nested
+`generateObject`, `embed*`) attaches to it as a child. Kubit's
+default export filter drops the Next.js HTTP span — it carries
+neither `gen_ai.*` attributes nor an allowlisted scope — so the AI
+children land at ingest with a `parentSpanId` pointing at a span
+Kubit never sees. The transformer only promotes spans with
+`parentId === null` to traces, so `traces_emitted=0` and only
+`enriched_observation` rows appear.
+
+Workaround (user-side): detach each top-level AI SDK call from the
+Next.js HTTP span by re-rooting it on `ROOT_CONTEXT`. The AI call
+then becomes a real root span; tool calls, nested `generateObject`,
+and `embed*` calls become its descendants and the trace is
+preserved.
+
+```typescript
+// app/(preview)/api/chat/route.ts
+import { context, ROOT_CONTEXT } from "@opentelemetry/api";
+
+export async function POST(req: Request) {
+  // …
+  const result = await context.with(ROOT_CONTEXT, () =>
+    streamText({ /* …same options… */ })
+  );
+  // …
+}
+```
+
+Apply this wrap to every route handler that calls a top-level AI
+SDK entrypoint (`streamText`, `generateText`, `embed`, `embedMany`,
+`generateObject`, `streamObject`). Easy to forget when adding new
+endpoints — track it in code review. Note that any non-AI
+OTel-aware work in the same route loses its connection to the HTTP
+span, by design. Cannot be fixed inside `@kubit-ai/otel`: silently
+promoting orphan children to root would corrupt legitimate
+cross-service traces where the parent lives in another process.
+
 ### Python
 
 Not applicable — see §1. Route Python services through `otel-genai`.

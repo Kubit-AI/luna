@@ -691,11 +691,25 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
    contain Python-shaped service metadata, so this line does not
    apply on the TS path.
 
+   When `vercel-ai` is in `sources_detected` and the repo is a Next.js
+   app (`next.config.*` present at repo root, or `next` declared in
+   `package.json`), append one more line after the verification
+   command (and after the Python service metadata line, when that
+   applies): *"Next.js's built-in OTel auto-instrumentation will
+   parent every Vercel AI span on an HTTP route span that Kubit's
+   default filter drops, leaving the AI spans orphaned and no traces
+   emitted. Wrap each top-level `streamText` / `generateText` /
+   `embed*` / `generateObject` / `streamObject` call in
+   `context.with(ROOT_CONTEXT, () => …)` from `@opentelemetry/api`
+   to detach it from the HTTP span. See `source-vercel-ai.md` §3 for
+   the snippet."* The skill does not edit route handlers — surfacing
+   the workaround is enough; the user owns the wrap.
+
    When `langchain` is in `sources_detected`, append one more line
    after the verification command (and after the Python service
-   metadata line, when both apply). The wording branches on the
-   chosen sink and (for Braintrust) the path picked in step 1's
-   detection trap:
+   metadata and Vercel AI Next.js reminders, when those apply). The
+   wording branches on the chosen sink and (for Braintrust) the
+   path picked in step 1's detection trap:
 
    - **Langfuse sink:** *"LangChain emits spans via the Langfuse
      callback handler — pass it to every `chain.invoke(…)` you want
@@ -1018,3 +1032,17 @@ here are either resolved or documented._
   `setupOtelCompat()` + `BraintrustSpanProcessor` shape is still
   correct in non-LangChain TS combinations (Vercel AI, manual
   OTel) where the user emits OTel spans directly.
+- **Next.js auto-instrumentation orphans Vercel AI spans**
+  (verified `next@15.x`, `ai@4.x`, April 2026). Registering a
+  global `TracerProvider` activates Next.js's built-in OTel
+  auto-instrumentation; the route's HTTP span (`scope=next.js`)
+  becomes the parent of every AI SDK span, and Kubit's default
+  export filter drops it, orphaning the children. The Kubit
+  transformer only promotes `parentId === null` spans to traces,
+  so `traces_emitted=0` and only `enriched_observation` rows land.
+  Fix: wrap each top-level Vercel AI SDK call in
+  `context.with(ROOT_CONTEXT, () => …)` from `@opentelemetry/api`
+  to re-root it. Cannot be fixed inside `@kubit-ai/otel` —
+  silently promoting orphans corrupts legitimate cross-service
+  traces. Surfaced in `source-vercel-ai.md` §3 and in the step 9
+  close-out when `vercel-ai` + Next.js are detected.
