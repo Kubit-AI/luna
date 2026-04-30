@@ -47,7 +47,9 @@ records from a report, use /kubit-inspect.
 
    `reportId` and `searchTerm` are mutually exclusive — never pass both.
 
-   **Modifying an existing report is not supported.** If the user asks to change, update, add a filter to, or otherwise modify a specific report by id, explain that reports are immutable and offer to create a new report from scratch with the desired definition (using `create_report`). Do not attempt to mutate the original.
+   **Reports are immutable — modifications create a new report.** Existing reports cannot be edited in place; there is no MCP tool that mutates a report. Handle "change", "update", "add a filter", "rebuild with", "but for X" requests as follows:
+   - **Modification of a report just created in this session** — the original query wording is in conversation context. Call `create_report(query="<original wording> + <user's modification>")` directly so the new report encodes the combined intent. Do not call `get_report` to "look up" the original — its response does not include the report's query. After the call, briefly note that this produced a new report (reports are immutable) so the user knows the original is still around.
+   - **Modification of a report referenced only by id (no in-session context)** — the original query is unavailable (`get_report` does not return it), so a faithful merge is impossible. Decline, explain reports are immutable, and ask the user to restate the full report they want; then proceed via the normal **Create** path.
 5. **Route the response.** The MCP returns report data. For operations that produce viewable data (opening or viewing a report), full-dataset analysis via the kubit-analyst is required whenever an export URL is available.
 
    **Decision rule:**
