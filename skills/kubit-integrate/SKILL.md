@@ -21,7 +21,7 @@ on two orthogonal axes:
 
 Given a repo with either a sink, one or more sources, or both, it:
 
-1. Ensures a Kubit session exists (delegating to `/kubit-connect` if not).
+1. Ensures a Kubit workspace context exists (delegating to `/kubit-connect` if not).
 2. Creates or selects the Kubit workspace for this app.
 3. Mints an ingestion key against that workspace.
 4. Writes the key into the repo's env config — `.env.local` or `.env`,
@@ -131,13 +131,13 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      *"No LLM tracing detected in this repo. `/kubit-integrate`
      recognises sinks (Langfuse, Braintrust) and sources (Vercel AI,
      OpenTelemetry GenAI, LangChain). Add one and re-run, or reach
-     out on #kubit."* and exit 0. No session touch, no workspace, no
+     out on #kubit."* and exit 0. No wsctx touch, no workspace, no
      writes.
    - `sinks_detected == [] && sources_detected == {langchain}` →
      print *"Detected LangChain, no sink. LangChain emits no OTel
      spans on its own — `/kubit-integrate` ships it only through a
      Langfuse or Braintrust callback handler. Add one of those sinks
-     and re-run."* and exit 0. No session touch, no workspace, no
+     and re-run."* and exit 0. No wsctx touch, no workspace, no
      writes. (If `langchain` is accompanied by another source such
      as `otel-genai`, treat the non-LangChain source as the sole
      source and fall through to the normal no-sink branch; LangChain
@@ -152,7 +152,7 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      OpenTelemetry GenAI semantic conventions, or LangChain via a
      Langfuse or Braintrust callback handler. Move your LLM calls
      under one of those wrappers and re-run."* and exit 0. No
-     session touch, no workspace, no writes. The gate is
+     wsctx touch, no workspace, no writes. The gate is
      sink-agnostic — fires whether or not Langfuse / Braintrust are
      present, because neither produces OTel spans from direct
      provider SDK calls.
@@ -192,20 +192,21 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
    > `@opentelemetry/sdk-trace-node` / `resources`) and re-run
    > `/kubit-integrate`.
 
-   No session touch, no workspace, no writes — same terminal shape as
+   No wsctx touch, no workspace, no writes — same terminal shape as
    the unsupported-framework exit. The Kubit Node SDK's transformer
    reads v2-only fields (`parentSpanContext.spanId`) and `configure()`
    uses v2-only APIs (`resourceFromAttributes()`, constructor-time
    `spanProcessors`), so there is no v1-compatible code path to emit.
 
-3. **Ensure Kubit session.** If the conversation already holds a
-   `SESSION` value (from a prior `/kubit-connect init` or `switch`),
-   reuse it. Otherwise, invoke `/kubit-connect` and resume here once it
-   returns a session. If the user aborts `/kubit-connect` or it fails to
-   establish a session, exit 0 with *"No active Kubit session — re-run
-   `/kubit-integrate` after `/kubit-connect`."* Do not write anything.
+3. **Ensure Kubit workspace context.** If the conversation already
+   holds a `WSCTX` value (from a prior `/kubit-connect init` or
+   `switch`), reuse it. Otherwise, invoke `/kubit-connect` and resume
+   here once it returns a wsctx. If the user aborts `/kubit-connect`
+   or it fails to establish a wsctx, exit 0 with *"No active Kubit
+   workspace context — re-run `/kubit-integrate` after
+   `/kubit-connect`."* Do not write anything.
 
-4. **Workspace selection.** The session from step 3 is already pinned
+4. **Workspace selection.** The wsctx from step 3 is already pinned
    to a workspace (the user's current one) and carries the list of
    other workspaces in the active org. Surface that context and let
    the user pick one of three branches. Record the branch as
@@ -229,15 +230,15 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
 
      Default on empty input is option 1. Route on the user's pick.
 
-   - **Branch: use current** → keep the session as-is.
+   - **Branch: use current** → keep the wsctx as-is.
      `workspace_action = used`. Skip to step 5.
 
    - **Branch: switch to existing** →
      - Ask the user to pick one of the already-listed workspaces by
        number or name.
-     - Call `switch { orgId, workspaceId, session }` with the current
+     - Call `switch { orgId, workspaceId, wsctx }` with the current
        org id and the chosen workspace id. Replace the in-memory
-       session with the one returned by `switch`.
+       wsctx with the one returned by `switch`.
        `workspace_action = switched`. Skip to step 5.
 
    - **Branch: create new** →
@@ -255,9 +256,9 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      - Show a single review line — `name=<value>, timezone=<value>` —
        and ask for an explicit confirm before the MCP call. The user
        can edit either input and re-review.
-     - Call `workspace_create { name, timezone, session }`. Warn the
+     - Call `workspace_create { name, timezone, wsctx }`. Warn the
        user the call can take ~30 seconds. The response returns a
-       session pinned to the newly created workspace; adopt it.
+       wsctx pinned to the newly created workspace; adopt it.
        `workspace_action = created`.
 
 5. **Obtain the ingestion key.** Two branches: mint a fresh key against
@@ -290,8 +291,8 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        `note=<value>` — so the user can see the label that will appear
        in the dashboard. Do not prompt for confirmation or override;
        pass the computed value straight to `workspace_mint_key`.
-     - Call `workspace_mint_key { session, note }` against whichever
-       session step 4 produced (the original session for the `used`
+     - Call `workspace_mint_key { wsctx, note }` against whichever
+       wsctx step 4 produced (the original wsctx for the `used`
        branch, the one returned by `switch` for `switched`, or the one
        returned by `workspace_create` for `created`). The `note` field
        is required by the server (1–255 chars, non-empty).
@@ -814,7 +815,7 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
 Grouped by phase. Each bucket shares the same end state; specific
 messages are in the sub-bullets.
 
-1. **Detection-phase exits.** No session touch, no workspace, no writes.
+1. **Detection-phase exits.** No wsctx touch, no workspace, no writes.
    - Neither sinks nor sources detected → print the friendly
      "no tracing detected" message (step 2) and exit 0.
    - Direct LLM SDK detected with no supported source → print the
@@ -831,9 +832,10 @@ messages are in the sub-bullets.
      *"Skipped Braintrust instrumentation. Re-run after enabling
      OTel-compat mode for your project."*
 
-2. **Session unavailable.** No session in context and `/kubit-connect`
-   fails or is aborted → exit 0 with *"No active Kubit session — re-run
-   `/kubit-integrate` after `/kubit-connect`."*
+2. **Workspace context unavailable.** No wsctx in context and
+   `/kubit-connect` fails or is aborted → exit 0 with *"No active
+   Kubit workspace context — re-run `/kubit-integrate` after
+   `/kubit-connect`."*
 
 3. **Timezone input.** Invalid IANA value → re-prompt once; on a second
    invalid value exit 0 with *"Invalid timezone — run `/kubit-integrate`
@@ -841,7 +843,7 @@ messages are in the sub-bullets.
 
 4. **MCP errors.** Surface the server message and exit 0; the
    workspace-state context differs by phase.
-   - `switch` fails → the session is unchanged (still pinned to the
+   - `switch` fails → the wsctx is unchanged (still pinned to the
      previous workspace); no mint, no write, no instrumentation.
    - `workspace_create` fails → nothing was created; no mint, no write,
      no instrumentation.
@@ -890,7 +892,7 @@ messages are in the sub-bullets.
 **Sink + hybrid source (Langfuse OTel shape).**
 Input: *"re-issue my Kubit key and wire the exporter"*
 Output: Detected sink `langfuse` (OTel shape — `@langfuse/otel` in
-`package.json`). Session from `/kubit-connect` shows current
+`package.json`). Workspace context from `/kubit-connect` shows current
 workspace `payments-prod` in org `acme`. Skill prints current + other
 workspaces, user picks option 1 (use current). Mints a fresh key,
 writes `KUBIT_EXPORT_API_KEY` into `.env`, installs the SDK, merges

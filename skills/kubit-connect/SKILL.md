@@ -1,14 +1,15 @@
 ---
 name: kubit-connect
-description: Use this skill when starting a Kubit session or switching organization or workspace. To create a new workspace, use `/kubit-integrate`.
+description: Use this skill when starting a Kubit workspace context or switching organization or workspace. To create a new workspace, use `/kubit-integrate`.
 ---
 
 # /kubit-connect
 
 ## Overview
 
-This skill pins the current Kubit org/workspace for the session by
-calling `init` or `switch` and capturing the returned `SESSION` value.
+This skill pins the current Kubit org/workspace by calling `init` or
+`switch` and capturing the returned `WSCTX` value (workspace context
+token).
 
 Two distinct things must be in place for Kubit MCP calls to work, and
 this skill only owns the second:
@@ -19,17 +20,17 @@ this skill only owns the second:
    URL the MCP surfaces). Until this completes, every Kubit MCP call
    — including `init` — fails with an auth error. See *Pre-flight:
    MCP authentication* below.
-2. **Kubit session** — the `SESSION` value returned by `init` and
-   `switch`. Pass it on every subsequent Kubit MCP call. It is **not**
-   an auth token; it only identifies which org/workspace the calls
-   operate against. If lost, just call `init` or `switch` again.
+2. **Workspace context (`wsctx`)** — the `WSCTX` value returned by
+   `init` and `switch`. Pass it on every subsequent Kubit MCP call. It
+   is **not** an auth token; it only pins which org/workspace the
+   calls operate against. If lost, just call `init` or `switch` again.
 
 ## When to Use
 
 This skill should be invoked when:
 - The user runs /kubit-connect for the first time
 - The user wants to switch organization or workspace
-- Another Kubit skill needs to be called and you don't have SESSION on the context.
+- Another Kubit skill needs to be called and you don't have WSCTX on the context.
 
 Workspace **creation** is not in scope here — route the user to
 `/kubit-integrate`, which owns the interactive onboarding flow
@@ -91,9 +92,9 @@ the user re-runs `/kubit-connect` when sign-in is done.
 
 - Skip organization and workspace prompts if the user has only one of each
 - Do not proceed to other skills if MCP authentication is not established — route the user to `/mcp` (Claude Code) or the auth URL paste flow (Cursor / fallback) per *Pre-flight: MCP authentication*.
-- Do not proceed to other skills if you don't have a `SESSION` obtained from `init` or `switch` — call one of them first.
-- Do not persistently store the session, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
-- Refresh session after 1 hour idle (not a security timeout — just re-pins the workspace)
+- Do not proceed to other skills if you don't have a `WSCTX` obtained from `init` or `switch` — call one of them first.
+- Do not persistently store the wsctx, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
+- Refresh wsctx after 1 hour idle (not a security timeout — just re-pins the workspace)
 - orgId and workspaceId must always be passed as a pair to `switch`
 
 ## Examples

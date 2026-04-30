@@ -21,10 +21,11 @@ This skill manages golden datasets and test suites in Kubit. Golden datasets are
 ## Workflow
 
 1. **Confirm workspace context.** Call the `init` MCP tool to load the current
-   org/workspace and obtain a SESSION token if one isn't already available in
-   this session. `init` is the only MCP tool that returns workspace context and
-   a session token — do not substitute any other tool (e.g. `help`) for this
-   step. If the user wants to switch, redirect to /kubit-connect.
+   org/workspace and obtain a WSCTX (workspace context) token if one isn't
+   already available in this conversation. `init` is the only MCP tool that
+   returns workspace context and a wsctx token — do not substitute any other
+   tool (e.g. `help`) for this step. If the user wants to switch, redirect to
+   /kubit-connect.
 
 2. **Pass the query through.** Send the user's wording directly to `dataset`.
    Do not pre-parse or reshape — the MCP handles dataset lookup, trace resolution,

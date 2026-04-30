@@ -102,7 +102,7 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Eight sources:
    `<sources>`. Continue? [Y/n]"* (omit either word when its set is
    empty). Surface any traps from step 2 inline. On `n`, exit 0.
 
-   Empty / unsupported terminal cases (no session touch, no fetch):
+   Empty / unsupported terminal cases (no wsctx touch, no fetch):
 
    - `sinks_detected == [] && sources_detected == []` → print
      *"No supported sink or source detected. `/kubit-blame` recognises
