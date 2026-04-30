@@ -59,17 +59,17 @@ Keep these limits in mind when editing skill copy so the instructions still work
 
 ## MCP
 
-Kubit MCP server is wired via OAuth (browser sign-in on first use); skills can assume it's configured. Dev (`.mcp.json` at repo root → `agent-int.kubit.ai/mcp`) is used only for project-scope sessions inside this repo and does **not** ship. Published installs get the URL constructed by `bin/install.js#mcpMerge()` from `FLAVOR.mcpUrl`. To change either URL, edit `PROD_FLAVOR` in `bin/install.js` or `scripts/dev-flavor.js` — never re-add `.mcp.json` to `package.json#files`.
+Kubit MCP server is wired via OAuth (browser sign-in on first use); skills can assume it's configured. Dev (`.mcp.json` at repo root → `agent-int.kubit.ai/mcp`) is used only for project-scope sessions inside this repo and does **not** ship. Published installs get the URL constructed by `bin/install.js#mcpMerge()` from `FLAVOR.mcpUrl`. To change a non-prod URL edit the matching key in `scripts/non-prod-flavors.js`; for prod edit `PROD_FLAVOR` in `bin/install.js`. Never re-add `.mcp.json` to `package.json#files`.
 
 ## Publish hygiene
 
 End-user tarballs must not leak internal infrastructure. Rules:
 
 - **One source of prod URLs.** Only `bin/install.js#PROD_FLAVOR` holds shipped endpoints. Reference via `FLAVOR.exportEndpoint` / `FLAVOR.mcpUrl`; never hardcode elsewhere.
-- **Dev URLs are never in shipped files.** `scripts/dev-flavor.js` carries them; `resolveFlavor()` tries to `require` it → present (source) picks dev, absent (tarball) falls back to `PROD_FLAVOR`. `KUBIT_EXPORT_ENDPOINT` still overrides either.
-- **Allowlist, not denylist.** `package.json#files` is authoritative; `.npmignore` is belt-and-braces. Keep out: internal hostnames (`*-dev.*`, `*-int.*`), dev tooling (`scripts/`, `test/`, `docs/`, `DEVELOPMENT.md`, `CLAUDE.md`), editor state (`.claude/`, `.cursor/`, `.idea/`), and the source-tree `.mcp.json`.
+- **Non-prod URLs are never in shipped files.** All non-prod flavors live in `scripts/non-prod-flavors.js` as a map keyed by flavor name. `resolveFlavor()` `require`s that file (present in source, absent in the tarball) and looks up `KUBIT_FLAVOR` (default `int`); the map's keys are the allowlist, so adding a new flavor is one new key. Source tree picks the chosen flavor; tarball falls back to `PROD_FLAVOR`. `KUBIT_EXPORT_ENDPOINT` still overrides any of them.
+- **Allowlist, not denylist.** `package.json#files` is authoritative; `.npmignore` is belt-and-braces. Keep out: internal hostnames (`*-dev.*`, `*-int.*`, `*-stg.*`), dev tooling (`scripts/`, `test/`, `docs/`, `DEVELOPMENT.md`, `CLAUDE.md`), editor state (`.claude/`, `.cursor/`, `.idea/`), and the source-tree `.mcp.json`.
 - **CHANGELOG is shipped.** Every bullet answers "what changed for me?", never "what internal process produced this?". Ban: internal release status (`in dogfood`, `not yet on ship allowlist`), refactor metrics (`N-item list consolidated`, `updated in lockstep`), internal vocabulary (`env-only tier`, ticket IDs), internal hostnames. Never rewrite released history; redact only the minimum.
-- **Audit before publish.** `npm pack && tar xzf *.tgz -C /tmp/kpack && grep -rniE 'kubit-ingest-dev|agent-int\.kubit|dogfood|in lockstep|env-only' /tmp/kpack/package/` — expect zero matches.
+- **Audit before publish.** `npm pack && tar xzf *.tgz -C /tmp/kpack && grep -rniE 'kubit-ingest-(dev|stg)|agent-(int|stg)\.kubit|dogfood|in lockstep|env-only' /tmp/kpack/package/` — expect zero matches.
 
 ## Commit Convention
 

@@ -72,39 +72,96 @@ const { substituteKubitMarkers, copySkillSibling, PROD_FLAVOR, resolveFlavor } =
 
 (function testProdFlavorShape() {
   // PROD_FLAVOR is the only endpoint pair baked into the shipped install.js.
-  // It must be complete, https, and must not carry the internal dev host.
+  // It must be complete, https, and must not carry any non-prod host.
   assert.ok(/^https:\/\//.test(PROD_FLAVOR.exportEndpoint), 'prod exportEndpoint must be https');
   assert.ok(/^https:\/\//.test(PROD_FLAVOR.mcpUrl), 'prod mcpUrl must be https');
   assert.ok(!PROD_FLAVOR.exportEndpoint.includes('-dev'), 'prod must not reference the dev ingest host');
+  assert.ok(!PROD_FLAVOR.exportEndpoint.includes('-stg'), 'prod must not reference the stg ingest host');
   assert.ok(!PROD_FLAVOR.mcpUrl.includes('agent-int'), 'prod must not reference the dev MCP host');
+  assert.ok(!PROD_FLAVOR.mcpUrl.includes('agent-stg'), 'prod must not reference the stg MCP host');
 })();
 
-(function testResolveFlavorUsesDevInSourceTree() {
-  // In the repo checkout scripts/dev-flavor.js exists, so resolveFlavor
-  // returns its values. If this fails, the dev-flavor module went missing
-  // from the source tree — which would let local dev installs hit prod.
-  const devPath = path.join(__dirname, '..', 'scripts', 'dev-flavor.js');
-  assert.ok(fs.existsSync(devPath), `scripts/dev-flavor.js must exist in source tree (expected at ${devPath})`);
-  const resolved = resolveFlavor();
-  assert.ok(resolved.exportEndpoint.includes('kubit-ingest-dev'), `expected dev ingest host, got ${resolved.exportEndpoint}`);
-  assert.ok(resolved.mcpUrl.includes('agent-int'), `expected dev MCP host, got ${resolved.mcpUrl}`);
+function withFlavorEnv(value, fn) {
+  const prev = process.env.KUBIT_FLAVOR;
+  if (value === undefined) delete process.env.KUBIT_FLAVOR;
+  else process.env.KUBIT_FLAVOR = value;
+  try { return fn(); }
+  finally {
+    if (prev === undefined) delete process.env.KUBIT_FLAVOR;
+    else process.env.KUBIT_FLAVOR = prev;
+  }
+}
+
+const NONPROD_PATH = path.join(__dirname, '..', 'scripts', 'non-prod-flavors.js');
+
+(function testResolveFlavorUsesIntInSourceTree() {
+  // In the repo checkout scripts/non-prod-flavors.js exists, so resolveFlavor
+  // returns its 'int' entry when KUBIT_FLAVOR defaults to 'int'. If this
+  // fails, the non-prod module went missing from the source tree — which
+  // would let local dev installs silently hit prod.
+  assert.ok(fs.existsSync(NONPROD_PATH), `scripts/non-prod-flavors.js must exist in source tree (expected at ${NONPROD_PATH})`);
+  withFlavorEnv(undefined, () => {
+    const resolved = resolveFlavor();
+    assert.ok(resolved.exportEndpoint.includes('kubit-ingest-dev'), `expected dev ingest host, got ${resolved.exportEndpoint}`);
+    assert.ok(resolved.mcpUrl.includes('agent-int'), `expected dev MCP host, got ${resolved.mcpUrl}`);
+  });
 })();
 
-(function testResolveFlavorFallsBackToProdWhenDevFlavorMissing() {
+(function testResolveFlavorUsesStgWhenSelected() {
+  // KUBIT_FLAVOR=stg returns the 'stg' entry from non-prod-flavors.js.
+  delete require.cache[require.resolve(NONPROD_PATH)];
+  withFlavorEnv('stg', () => {
+    const resolved = resolveFlavor();
+    const stgEntry = require(NONPROD_PATH).stg;
+    assert.ok(stgEntry, 'non-prod-flavors.js must export a stg entry');
+    assert.strictEqual(resolved.exportEndpoint, stgEntry.exportEndpoint, 'stg exportEndpoint mismatch');
+    assert.strictEqual(resolved.mcpUrl, stgEntry.mcpUrl, 'stg mcpUrl mismatch');
+  });
+})();
+
+(function testResolveFlavorFallsBackToProdWhenNonProdMapMissing() {
   // Simulate a published tarball: the scripts/ directory isn't shipped, so
   // the require inside resolveFlavor() throws. Emulate this by temporarily
-  // renaming the dev-flavor module and clearing Node's require cache.
-  const devPath = path.join(__dirname, '..', 'scripts', 'dev-flavor.js');
-  const stashPath = devPath + '.stash';
-  fs.renameSync(devPath, stashPath);
-  const cached = require.resolve(devPath);
+  // renaming non-prod-flavors.js and clearing Node's require cache. Both
+  // the default ('int') and KUBIT_FLAVOR=stg paths must fall back to PROD.
+  const stashPath = NONPROD_PATH + '.stash';
+  fs.renameSync(NONPROD_PATH, stashPath);
+  const cached = require.resolve(NONPROD_PATH);
   delete require.cache[cached];
   try {
-    const resolved = resolveFlavor();
-    assert.strictEqual(resolved, PROD_FLAVOR, 'missing dev-flavor.js must fall back to PROD_FLAVOR');
+    withFlavorEnv(undefined, () => {
+      assert.strictEqual(resolveFlavor(), PROD_FLAVOR, 'default flavor must fall back to PROD_FLAVOR when non-prod map is missing');
+    });
+    withFlavorEnv('stg', () => {
+      assert.strictEqual(resolveFlavor(), PROD_FLAVOR, 'KUBIT_FLAVOR=stg must fall back to PROD_FLAVOR when non-prod map is missing');
+    });
   } finally {
-    fs.renameSync(stashPath, devPath);
+    fs.renameSync(stashPath, NONPROD_PATH);
     delete require.cache[cached];
+  }
+})();
+
+(function testResolveFlavorRejectsUnknownFlavor() {
+  // KUBIT_FLAVOR set to a value that isn't a key in non-prod-flavors.js
+  // must fail fast (no silent fallback to prod) so a typo doesn't ship the
+  // wrong installer URLs. Stub process.exit to throw so the test can
+  // observe the fatal() call without killing the runner; silence
+  // stderr.write to keep test output clean.
+  const origExit = process.exit;
+  const origStderrWrite = process.stderr.write.bind(process.stderr);
+  let exitCode = null;
+  let stderrMsg = '';
+  process.exit = (c) => { exitCode = c; throw new Error('exit-stub'); };
+  process.stderr.write = (s) => { stderrMsg += s; return true; };
+  try {
+    withFlavorEnv('junk', () => {
+      assert.throws(() => resolveFlavor(), /exit-stub/, 'expected fatal() to be invoked');
+    });
+    assert.strictEqual(exitCode, 1, `expected exit code 1, got ${exitCode}`);
+    assert.ok(/unknown KUBIT_FLAVOR/.test(stderrMsg), `expected error message about unknown KUBIT_FLAVOR, got: ${stderrMsg}`);
+  } finally {
+    process.exit = origExit;
+    process.stderr.write = origStderrWrite;
   }
 })();
 

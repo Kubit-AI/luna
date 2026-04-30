@@ -10,25 +10,36 @@ const PKG_ROOT = path.resolve(__dirname, '..');
 
 // Production endpoints — the only flavor baked into the published tarball,
 // and therefore the only URLs visible to anyone unpacking the npm package.
-// Dev endpoints live in scripts/dev-flavor.js, which is NOT in
-// package.json#files and so never ships. When the repo is cloned locally
-// that file is present and resolveFlavor() downgrades the install to dev;
-// when `npx @kubit-ai/agent-plugin` runs from the tarball, it's absent and
-// PROD_FLAVOR wins. `KUBIT_EXPORT_ENDPOINT=...` still overrides the
-// resolved export endpoint — used for internal testing against custom hosts.
+// Non-prod endpoints live in scripts/non-prod-flavors.js as a map keyed
+// by flavor name. That file is NOT in package.json#files and so never
+// ships. From the source tree, KUBIT_FLAVOR selects a key (default 'int');
+// when `npx @kubit-ai/agent-plugin` runs from the tarball, the file is
+// absent and PROD_FLAVOR wins regardless of KUBIT_FLAVOR.
+// `KUBIT_EXPORT_ENDPOINT=...` still overrides the resolved export endpoint —
+// used for internal testing against custom hosts.
 const PROD_FLAVOR = {
   exportEndpoint: 'https://kubit-ingest.kubit.ai/token',
   mcpUrl: 'https://agent.kubit.ai/mcp',
 };
 
 function resolveFlavor() {
+  const name = process.env.KUBIT_FLAVOR || 'int';
+  let flavors;
   try {
     // eslint-disable-next-line global-require
-    const devOverride = require('../scripts/dev-flavor.js');
-    if (devOverride && devOverride.exportEndpoint && devOverride.mcpUrl) {
-      return devOverride;
-    }
-  } catch { /* no dev-flavor module — running from a published tarball */ }
+    flavors = require('../scripts/non-prod-flavors.js');
+  } catch {
+    // No non-prod module — running from a published tarball. KUBIT_FLAVOR
+    // (if set) is ignored; only prod URLs are reachable in that environment.
+    return PROD_FLAVOR;
+  }
+  const flavor = flavors[name];
+  if (!flavor) {
+    fatal(`unknown KUBIT_FLAVOR: ${name} (expected one of: ${Object.keys(flavors).join(', ')})`);
+  }
+  if (flavor.exportEndpoint && flavor.mcpUrl) {
+    return flavor;
+  }
   return PROD_FLAVOR;
 }
 

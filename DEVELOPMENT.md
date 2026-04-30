@@ -7,37 +7,53 @@ exclusions on top).
 
 ## Build flavors
 
-`bin/install.js` resolves one of two endpoint pairs at runtime:
+`bin/install.js` resolves one of three endpoint pairs at runtime:
 
-| Flavor | Ingest token endpoint                     | MCP server URL                   |
-| :----- | :---------------------------------------- | :------------------------------- |
-| `dev`  | `https://kubit-ingest-dev.kubit.ai/token` | `https://agent-int.kubit.ai/mcp` |
-| `prod` | `https://kubit-ingest.kubit.ai/token`     | `https://agent.kubit.ai/mcp`     |
+| Flavor | Selector                        | Ingest token endpoint                     | MCP server URL                   |
+| :----- | :------------------------------ | :---------------------------------------- | :------------------------------- |
+| `int`  | default (or `KUBIT_FLAVOR=int`) | `https://kubit-ingest-dev.kubit.ai/token` | `https://agent-int.kubit.ai/mcp` |
+| `stg`  | `KUBIT_FLAVOR=stg`              | `scripts/non-prod-flavors.js#stg` (placeholders — fill in before use) | `scripts/non-prod-flavors.js#stg` |
+| `prod` | published tarball               | `https://kubit-ingest.kubit.ai/token`     | `https://agent.kubit.ai/mcp`     |
 
 Only the `prod` pair is hardcoded in `bin/install.js` (as `PROD_FLAVOR`).
-The `dev` pair lives in `scripts/dev-flavor.js`, which is **not** in
-`package.json#files` and therefore never ships on npm. `resolveFlavor()`
-in `install.js` does a `try { require('../scripts/dev-flavor.js') }`: if
-it resolves (source tree), the installer runs with dev endpoints; if it
-throws (published tarball), the installer falls back to `PROD_FLAVOR`.
+All non-prod flavors live in `scripts/non-prod-flavors.js` as a single
+map keyed by flavor name. That file is not in `package.json#files`, so
+it never ships on npm. `resolveFlavor()` in `install.js`:
+
+1. Does `try { require('../scripts/non-prod-flavors.js') }`. If it
+   throws (published tarball), returns `PROD_FLAVOR` immediately —
+   `KUBIT_FLAVOR` is ignored in that environment.
+2. In the source tree, looks up `KUBIT_FLAVOR` (default `int`) in the
+   map. Unknown keys fail fast via `fatal()`. The map's keys *are* the
+   allowlist — adding a new flavor is a one-line change.
 
 This means:
 
-- End users running `npx @kubit-ai/agent-plugin` always hit prod.
+- End users running `npx @kubit-ai/agent-plugin` always hit prod —
+  `KUBIT_FLAVOR` set in a published install still falls back to prod
+  because the non-prod map is absent.
 - Anyone unpacking the tarball to inspect `bin/install.js` sees only the
-  prod URLs. Internal dev hostnames are not published.
-- Local dev iteration continues to hit dev without any extra setup — the
-  source tree carries the dev-flavor module.
+  prod URLs. Internal hostnames (int, stg, …) are not published.
+- Local dev iteration continues to hit `int` without any extra setup —
+  the source tree carries `scripts/non-prod-flavors.js`.
+- Local staging runs use `KUBIT_FLAVOR=stg` and require the staging
+  URLs to be filled into the `stg` entry of `scripts/non-prod-flavors.js`
+  first.
 
-Override for either flavor:
+Adding a new non-prod flavor (`qa`, `pre`, …) is one new key in
+`scripts/non-prod-flavors.js`; nothing else in `bin/install.js` needs to
+change.
+
+Override for any flavor:
 
 ```bash
 KUBIT_EXPORT_ENDPOINT=https://custom-host/token npx @kubit-ai/agent-plugin
 ```
 
 The env var wins over the resolved export endpoint. The MCP URL has no
-env override — edit `scripts/dev-flavor.js` (for local testing) or
-`PROD_FLAVOR` in `bin/install.js` if you need a different MCP host.
+env override — edit the relevant entry in `scripts/non-prod-flavors.js`
+(for local testing) or `PROD_FLAVOR` in `bin/install.js` if you need a
+different MCP host.
 
 ## Local installation (dev)
 
@@ -49,11 +65,16 @@ node bin/install.js -c /tmp/kubit-scratch -y
 
 # Or install globally (user-wide ~/.claude) — runtime prompt still fires:
 node bin/install.js
+
+# Run against staging (after filling in scripts/non-prod-flavors.js stg placeholders):
+KUBIT_FLAVOR=stg node bin/install.js -c /tmp/kubit-stg -y
 ```
 
-Because `scripts/dev-flavor.js` is present, `resolveFlavor()` returns dev
-endpoints. Expect `kubit-ingest-dev.kubit.ai` in substituted skill
-snippets and `agent-int.kubit.ai/mcp` in the merged MCP config.
+By default `KUBIT_FLAVOR=int`, so the `int` entry of
+`scripts/non-prod-flavors.js` is used: `kubit-ingest-dev.kubit.ai` in
+substituted skill snippets and `agent-int.kubit.ai/mcp` in the merged
+MCP config. With `KUBIT_FLAVOR=stg` the installer reads the `stg` entry
+of the same file.
 
 `-l` / `--local` writes into `./.claude` (and/or `./.cursor`) under cwd —
 useful when iterating on a specific repo, but incompatible with `-c`.
@@ -69,7 +90,7 @@ Verify the prod path without publishing:
 ```bash
 npm pack                                        # emits kubit-ai-agent-plugin-X.Y.Z.tgz
 tar tzf kubit-ai-agent-plugin-*.tgz | grep -E 'scripts|\.mcp\.json'   # expect: nothing
-grep -E 'kubit-ingest-dev|agent-int' /tmp/kpack/package/bin/install.js  # expect: nothing
+grep -rE 'kubit-ingest-(dev|stg)|agent-(int|stg)' /tmp/kpack/package/  # expect: nothing
 
 mkdir -p /tmp/kpack && tar xzf kubit-ai-agent-plugin-*.tgz -C /tmp/kpack
 node /tmp/kpack/package/bin/install.js -c /tmp/kubit-prod -y
@@ -86,8 +107,9 @@ npm test
 ```
 
 Covers marker substitution (`substituteKubitMarkers`, `copySkillSibling`)
-and flavor resolution: `PROD_FLAVOR` shape, source-tree dev override,
-fallback to prod when `scripts/dev-flavor.js` is absent.
+and flavor resolution: `PROD_FLAVOR` shape, source-tree int (default)
+and stg overrides, fallback to prod when `scripts/non-prod-flavors.js`
+is absent, and rejection of unknown `KUBIT_FLAVOR` values.
 
 ## Files that must not ship
 
@@ -100,7 +122,7 @@ hostnames, dev overrides, or personal editor state leak onto npm:
   project-scope Claude Code sessions inside this repo; not needed at
   install time because `mcpMerge()` constructs the entry from the
   resolved flavor)
-- `scripts/` (including `scripts/dev-flavor.js`)
+- `scripts/` (including `scripts/non-prod-flavors.js`)
 - `test/`, `docs/`, `.github/`
 - `.claude/`, `.cursor/` — personal settings that occasionally land
   inside subdirs; also excluded via `.npmignore`
