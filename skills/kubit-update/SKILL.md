@@ -9,7 +9,7 @@ description: Use this skill when the user wants to check for or install updates 
 
 Checks npm for a newer version of `@kubit-ai/agent-plugin`, shows what changed,
 asks the user to confirm, and then re-runs the installer to apply the update.
-No session required — this skill works without `/kubit-connect`.
+No workspace context required — this skill works without `/kubit-connect`.
 
 ## When to use
 

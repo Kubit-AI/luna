@@ -8,7 +8,7 @@ description: Use this skill when the user asks what Kubit can do, needs help, is
 
 This skill is the discovery index for the Kubit plugin. It lists all available
 skills, explains what each one does, and routes users to the right one for their
-task. No session required — works before /kubit-connect is complete.
+task. No workspace context required — works before /kubit-connect is complete.
 
 This skill can also be used to file a support request with the kubit system - it
 is possible to file BUGs, QUESTION for asking for help and FEEDBACK for general feedback
@@ -47,7 +47,7 @@ can determine from the current conversation or by looking at the project
   adjacent: `kubit-otel`, `@kubit-ai/otel`, observability sinks (Langfuse,
   Braintrust), and LLM sources (Vercel AI SDK, OpenAI, Anthropic, LangChain,
   OpenTelemetry GenAI).
-- **Kubit session info** — current org and workspace if a session is active.
+- **Kubit workspace context info** — current org and workspace if a wsctx is active.
 - **Troubleshooting signals from this conversation** — recent error messages,
   stack traces, failed MCP calls (tool name + error), and what the user has
   already tried.
@@ -64,9 +64,9 @@ Guidelines:
 ## Skills
 
 ### /kubit-connect
-Sets up your Kubit session. Handles org and workspace selection and
-switching. Required before any other skill — provides the SESSION
-token everything else depends on.
+Sets up your Kubit workspace context. Handles org and workspace selection and
+switching. Required before any other skill — provides the WSCTX
+(workspace context) token everything else depends on.
     /kubit-connect
     /kubit-connect switch workspace staging
 ---
@@ -113,8 +113,8 @@ since the installed version, and runs the installer after confirmation.
 
 ## Rules
 
-- Don't require a session — this skill must work before /kubit-connect is complete.
-  However, the `help` mcp call does require a session - call `init` first if you don't already have a session id in
+- Don't require a workspace context — this skill must work before /kubit-connect is complete.
+  However, the `help` mcp call does require a wsctx - call `init` first if you don't already have a wsctx in
   the context and `help` needs to be called.
 - When calling `help`, always format `text` as `<user request>\n---\n<context>`
   per the "Filing a support request" section. The `---` separator is mandatory.

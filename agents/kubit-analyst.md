@@ -38,8 +38,8 @@ You are a Kubit analyst sub-agent. You receive a user's question and a presigned
    EOF
    ```
 
-2. **Obtain the dataset.** Your prompt provides **one of** `Export URL:` (new fetch — also includes `Session key:`) or `Dataset path:` (cached dataset — reuse directly; the parent skill already session-scoped the path).
-   - **If `Export URL` was provided:** build the session-scoped cache path and download. `CACHE_DIR=/tmp/kubit-dataset/$SESSION_KEY` and `DATAFILE=$CACHE_DIR/current.csv`, then `mkdir -p "$CACHE_DIR" && curl -sS -o "$DATAFILE" "$EXPORT_URL"`. Overwriting is intentional — this is the single-slot dataset cache for this Kubit session.
+2. **Obtain the dataset.** Your prompt provides **one of** `Export URL:` (new fetch — also includes `Workspace context key:`) or `Dataset path:` (cached dataset — reuse directly; the parent skill already wsctx-scoped the path).
+   - **If `Export URL` was provided:** build the wsctx-scoped cache path and download. `CACHE_DIR=/tmp/kubit-dataset/$WSCTX_KEY` and `DATAFILE=$CACHE_DIR/current.csv`, then `mkdir -p "$CACHE_DIR" && curl -sS -o "$DATAFILE" "$EXPORT_URL"`. Overwriting is intentional — this is the single-slot dataset cache for this Kubit workspace context.
    - **If `Dataset path` was provided:** set `DATAFILE="$DATASET_PATH"`, skip the download. The CSV is already present from a previous turn.
 
    Use `$DATAFILE` for all subsequent reads. Do not delete it.
@@ -122,7 +122,7 @@ You are a Kubit analyst sub-agent. You receive a user's question and a presigned
 ## Rules
 
 - Only pandas is allowed as a dependency. Pin to `>=2.0,<3`. The bootstrap in step 1 handles installation in an isolated scope (uv cache or throw-away venv) — no user confirmation required.
-- Clean up the temp venv directory (if created) when done. Do **not** delete the dataset CSV or manifest under `/tmp/kubit-dataset/<session-key>/` — those persist across turns so follow-up analysis can reuse them.
+- Clean up the temp venv directory (if created) when done. Do **not** delete the dataset CSV or manifest under `/tmp/kubit-dataset/<wsctx-key>/` — those persist across turns so follow-up analysis can reuse them.
 - Never present results directly to the user. Return your findings as text — the parent skill handles formatting and next-step suggestions.
 - Always profile before analyzing. Understanding the data prevents most script errors.
 - When grouping by a high-cardinality column (>20 unique values), show the top and bottom 5 by the metric of interest plus the overall median for context. Do not list all groups.
@@ -134,8 +134,8 @@ You are a Kubit analyst sub-agent. You receive a user's question and a presigned
 Your prompt will contain:
 - **Question:** The user's question (e.g., "p95 latency by agent", "show me failed traces", "what's going on with errors")
 - **Dataset — one of:**
-  - **Export URL:** A presigned URL to a fresh CSV export from Kubit. Download it to the session-scoped cache path and write the manifest.
-  - **Dataset path:** An absolute path (under `/tmp/kubit-dataset/<session-key>/current.csv`) to a dataset already on disk from a previous turn. Reuse it directly and do not rewrite the manifest.
-- **Session key (with Export URL only):** A short hash (e.g. `a1b2c3d4e5f6`) identifying the current Kubit MCP session. Used to build the cache path `/tmp/kubit-dataset/<session-key>/` so concurrent Claude Code / Cursor sessions don't collide.
+  - **Export URL:** A presigned URL to a fresh CSV export from Kubit. Download it to the wsctx-scoped cache path and write the manifest.
+  - **Dataset path:** An absolute path (under `/tmp/kubit-dataset/<wsctx-key>/current.csv`) to a dataset already on disk from a previous turn. Reuse it directly and do not rewrite the manifest.
+- **Workspace context key (with Export URL only):** A short hash (e.g. `a1b2c3d4e5f6`) identifying the current Kubit MCP workspace context (wsctx). Used to build the cache path `/tmp/kubit-dataset/<wsctx-key>/` so concurrent Claude Code / Cursor sessions don't collide.
 - **Source (with Export URL only):** `inspect` or `report` — the parent skill that triggered the fetch. Recorded in the manifest.
 - **Context (optional):** Additional context like column descriptions or filter criteria

@@ -23,15 +23,15 @@ aggregate analytics and trends, use /kubit-report.
 
 ## Workflow
 
-1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a SESSION token if one isn't already available in this session. `init` is the only MCP tool that returns workspace context and a session token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill.
-2. **Check for a cached dataset (session-scoped).** Compute the cache key from the current MCP SESSION token so concurrent sessions don't collide:
+1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill.
+2. **Check for a cached dataset (wsctx-scoped).** Compute the cache key from the current MCP WSCTX token so concurrent conversations don't collide:
 
    ```bash
-   SESSION_KEY=$(printf %s "$SESSION" | shasum -a 256 | cut -c1-12)
-   CACHE_DIR="/tmp/kubit-dataset/$SESSION_KEY"
+   WSCTX_KEY=$(printf %s "$WSCTX" | shasum -a 256 | cut -c1-12)
+   CACHE_DIR="/tmp/kubit-dataset/$WSCTX_KEY"
    ```
 
-   If `$CACHE_DIR/current.json` exists, read it. If the user's message is a follow-up analysis or narrowing question about that same dataset (e.g. references "those", "the ones", "that set", or asks for a different cut of the data just shown), **skip the MCP call** and spawn `kubit-analyst` with `Dataset path: $CACHE_DIR/current.csv` plus the cached manifest's question and columns as Context. Otherwise proceed to the MCP call below — it will replace this session's cached dataset. When unsure whether the question is a follow-up, prefer a fresh fetch.
+   If `$CACHE_DIR/current.json` exists, read it. If the user's message is a follow-up analysis or narrowing question about that same dataset (e.g. references "those", "the ones", "that set", or asks for a different cut of the data just shown), **skip the MCP call** and spawn `kubit-analyst` with `Dataset path: $CACHE_DIR/current.csv` plus the cached manifest's question and columns as Context. Otherwise proceed to the MCP call below — it will replace this workspace's cached dataset. When unsure whether the question is a follow-up, prefer a fresh fetch.
 3. **Pass the query through.** Send the user's wording directly to `inspect`. Do not pre-parse, resolve, or reshape parameters — the MCP handles entity type, filters, schema, and date range. If the user references a prior report or pastes a report URL, include that context in the query string. If the MCP asks which entity type to query (users, sessions, traces, events), present the options to the user rather than guessing.
 4. **Route the response.** For data-fetching queries the MCP returns a `## Created Analysis` metadata block (id, display, reportUrl, status), an `exportUrl` pointing to the full dataset CSV, an inline **sample of up to 5 rows** (long values ellipsified at 97 chars), and the **total matching row count**. Use the sample + total to summarize directly without spawning the analyst, unless the user's intent is analytical. Special cases (entity-type clarification, zero results, MCP errors) return short text instead of the metadata block.
 
@@ -67,7 +67,7 @@ aggregate analytics and trends, use /kubit-report.
    2. Spawn the `kubit-analyst` sub-agent with a prompt containing:
       - **Question:** The user's original question
       - **Export URL:** The export URL from the MCP response text
-      - **Session key:** `$SESSION_KEY` (from step 2 — tells the analyst where to cache)
+      - **Workspace context key:** `$WSCTX_KEY` (from step 2 — tells the analyst where to cache)
       - **Source:** `inspect` (recorded in the dataset manifest)
       - **Context:** Any relevant column descriptions or filter criteria from the MCP response
    3. Relay the analyst's findings as returned: headline + compact table + brief notable findings. Don't expand into prose.
@@ -76,7 +76,7 @@ aggregate analytics and trends, use /kubit-report.
    1. Check prerequisites via Bash the same way as above (`command -v uv`, `python3 --version`). If neither is available, tell the user so and stop — there's no MCP fallback on this path since we're deliberately skipping the MCP.
    2. Spawn `kubit-analyst` with:
       - **Question:** The user's follow-up question
-      - **Dataset path:** `$CACHE_DIR/current.csv` (already session-scoped)
+      - **Dataset path:** `$CACHE_DIR/current.csv` (already wsctx-scoped)
       - **Context:** The original question and column list from `$CACHE_DIR/current.json`, so the analyst knows what the dataset represents
    3. Relay the analyst's findings the same way as above (headline + table + notable findings).
 
