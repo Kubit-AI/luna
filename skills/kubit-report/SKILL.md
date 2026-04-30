@@ -36,7 +36,6 @@ records from a report, use /kubit-inspect.
    - **Search** — user references a report by name or description
    - **List recent** — user asks for "recent reports", "what reports do I have", or similar without naming one
    - **Create** — user uses explicit creation language: "create", "build", "make", "new", "set up", "give me a..." — or a search returned zero matches and the user confirmed they want to create
-   - **Modify** — user references a known report id AND asks to change it ("add a filter", "update", "rebuild with", "but for X")
    - **Refresh** — user explicitly asks to re-run or bypass cache for a known report id
    - **Ambiguous** — always search first.
 4. **Call the MCP based on intent.** Pass the user's wording through directly — do not pre-parse or reshape parameters.
@@ -45,9 +44,10 @@ records from a report, use /kubit-inspect.
    - **List recent** → `get_report()` with neither `reportId` nor `searchTerm` returns the 10 most recent reports.
    - **Refresh** → `get_report(reportId=<id>, refresh=true)` forces re-execution, bypassing cached data. Only on explicit user request — it may be slow.
    - **Create** → `create_report(query="<user wording>")`. The MCP classifies the query into the right type (query, funnel, flow, retention, cohort sample) and builds it.
-   - **Modify** — user references a report by numeric id AND uses modification verbs ("add filter", "change", "update", "rebuild with", "but for"). Call `get_report(reportId=<id>)` first to retrieve the existing report's `query`, then call `create_report(query="<original query> + <user's modification phrasing>")` to materialize the modified report as a new analysis. Never mutate the original report. Render the new report, not the original.
 
    `reportId` and `searchTerm` are mutually exclusive — never pass both.
+
+   **Modifying an existing report is not supported.** If the user asks to change, update, add a filter to, or otherwise modify a specific report by id, explain that reports are immutable and offer to create a new report from scratch with the desired definition (using `create_report`). Do not attempt to mutate the original.
 5. **Route the response.** The MCP returns report data. For operations that produce viewable data (opening or viewing a report), full-dataset analysis via the kubit-analyst is required whenever an export URL is available.
 
    **Decision rule:**
