@@ -96,7 +96,7 @@ the user re-runs `/kubit-connect` when sign-in is done.
 - Do not persistently store the wsctx, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
 - Refresh wsctx after 1 hour idle (not a security timeout — just re-pins the workspace)
 - orgId and workspaceId must always be passed as a pair to `switch`
-- The built-in `Example` workspace is demo-only — keys cannot be minted against it and traces cannot be ingested into it. If the user lands there and wants to instrument an app, route them to `/kubit-integrate` to create or switch to a real workspace.
+- Workspaces carrying the `[example: read-only, cannot mint api key]` tag in the `init` response are demo-only — surface the tag verbatim when listing them. If the user wants to instrument an app against one, route them to `/kubit-integrate` to switch to or create a real workspace.
 
 ## Examples
 
