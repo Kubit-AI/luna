@@ -220,6 +220,10 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        `  - <name>` — under a heading `Other workspaces in "<org>":`.
        If the current workspace is the only one, print instead
        `No other workspaces in "<org>".` as a single line.
+     - If the current or any listed workspace is named `Example`,
+       append ` (demo-only — cannot mint keys or ingest traces)` after
+       its name. If the user picks it via option 1 or 2, re-prompt to
+       either switch to another workspace or create a new one.
 
    - **Prompt for action.** Present numbered options. Omit option 2
      when there are no other workspaces:
