@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-06
+
+### Fixed
+
+- Installer prompts now reflect the chosen action: running with `-u`
+  asks "Which runtime(s) to uninstall?" and "Uninstall from global or
+  local?", instead of always saying "install".
+
+## [0.1.0] - 2026-04-22
+
 ### Changed
 
 - `/kubit-integrate` is the turn-on-Kubit flow: it detects existing

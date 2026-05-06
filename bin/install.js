@@ -606,8 +606,10 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { process.stdout.write(HELP); return; }
 
+  const mode = args.uninstall ? 'uninstall' : 'install';
+
   // Runtime is always chosen interactively — no flag shortcut.
-  const runtimeIdx = await promptChoice('Which runtime(s) to install?', [
+  const runtimeIdx = await promptChoice(`Which runtime(s) to ${mode}?`, [
     'Claude Code',
     'Cursor',
     'Both',
@@ -618,7 +620,8 @@ async function main() {
   if (!args.global && !args.local) {
     if (args.yes) args.global = true;
     else {
-      const idx = await promptChoice('Install globally (user-wide) or locally (current directory)?', [
+      const verb = mode === 'uninstall' ? 'Uninstall from' : 'Install to';
+      const idx = await promptChoice(`${verb} global (user-wide) or local (current directory)?`, [
         'Global',
         'Local',
       ], 0);
@@ -627,7 +630,6 @@ async function main() {
     }
   }
 
-  const mode = args.uninstall ? 'uninstall' : 'install';
   log(`\nkubit-agent-plugin — ${mode} (${args.local ? 'local' : 'global'}) for: ${runtimes.join(', ')}`);
 
   for (const rt of runtimes) {
