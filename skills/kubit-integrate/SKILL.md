@@ -1,6 +1,6 @@
 ---
 name: kubit-integrate
-description: Use this skill when the user wants to start shipping their existing LLM tracing into Kubit. Detects on two axes — tracing **sinks** (Langfuse, Braintrust) and tracing **sources** (Vercel AI SDK, OpenTelemetry GenAI, LangChain) — then creates a fresh Kubit workspace, mints an ingestion key, writes it to the repo's env config (`.env.local` or `.env`), installs the Kubit SDK (`kubit-otel` / `@kubit-ai/otel`), and wires Kubit's span processor according to the detected sink (co-register alongside) or — when no sink is present — stands Kubit up as the sole sink for the detected source(s).
+description: Use this skill when the user wants to start shipping their existing LLM tracing into Kubit. Detects on two axes — tracing **sinks** (Langfuse, Braintrust) and tracing **sources** (Vercel AI SDK, OpenTelemetry GenAI, LangChain) — then creates a fresh Kubit workspace, mints an ingestion key, writes it to the repo's env config (`.env.local` or `.env`), installs the standard OpenTelemetry OTLP HTTP exporter packages, and wires a `BatchSpanProcessor(OTLPTraceExporter)` aimed at Kubit according to the detected sink (co-register alongside) or — when no sink is present — stands Kubit up as the sole sink for the detected source(s).
 ---
 
 # /kubit-integrate
@@ -26,9 +26,11 @@ Given a repo with either a sink, one or more sources, or both, it:
 3. Mints an ingestion key against that workspace.
 4. Writes the key into the repo's env config — `.env.local` or `.env`,
    whichever matches the project's conventions (gitignore-checked).
-5. Installs the Kubit SDK (`kubit-otel` / `@kubit-ai/otel`) via the
-   project's package manager.
-6. Wires Kubit's span processor:
+5. Installs the standard OpenTelemetry OTLP HTTP exporter packages
+   (`opentelemetry-exporter-otlp-proto-http` /
+   `@opentelemetry/exporter-trace-otlp-proto`) via the project's
+   package manager.
+6. Wires a `BatchSpanProcessor(OTLPTraceExporter)` aimed at Kubit:
    - **Sink present** → the detected sink adapter's §3 template
      drives the merge (or standalone bootstrap when §3a finds no
      wiring site).
@@ -165,38 +167,6 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      sources: `<sources>`. Instrument? [y/N]"* (omit the sink line
      when sole-sink; say *"Kubit will be the sole sink for
      `<sources>`."*). Exit 0 on no.
-
-   **OTel JS SDK version gate (Node/TS path only).** Once
-   confirmation passes in a TS/Node repo (any TS source or sink),
-   resolve the installed version of `@opentelemetry/sdk-trace-base`
-   (and `@opentelemetry/sdk-trace-node` when present). **Resolve via
-   the lockfile, not `package.json`** — `sdk-trace-base` typically
-   arrives transitively. Sources in order of precedence:
-   - `package-lock.json` (npm): walk `packages["node_modules/@opentelemetry/sdk-trace-base"].version`
-     (and the same for `sdk-trace-node`).
-   - `pnpm-lock.yaml` (pnpm): grep for the
-     `/@opentelemetry/sdk-trace-base@<version>` entries under
-     `packages:`.
-   - `yarn.lock` (yarn classic + berry): grep the resolved block for
-     `"@opentelemetry/sdk-trace-base@..."`.
-   - `bun.lockb` / `bun.lock` (bun): run
-     `bun pm ls @opentelemetry/sdk-trace-base` and parse the resolved
-     version.
-   - Only if no lockfile exists, fall back to `package.json` declared
-     ranges — and record the fallback in the error message.
-
-   If either resolves to `< 2.0.0`, exit 0 with:
-
-   > `@kubit-ai/otel` requires `@opentelemetry/sdk-trace-base >= 2.0.0`.
-   > Detected `<version>`. Upgrade your OTel JS SDK (and
-   > `@opentelemetry/sdk-trace-node` / `resources`) and re-run
-   > `/kubit-integrate`.
-
-   No wsctx touch, no workspace, no writes — same terminal shape as
-   the unsupported-framework exit. The Kubit Node SDK's transformer
-   reads v2-only fields (`parentSpanContext.spanId`) and `configure()`
-   uses v2-only APIs (`resourceFromAttributes()`, constructor-time
-   `spanProcessors`), so there is no v1-compatible code path to emit.
 
 3. **Ensure Kubit workspace context.** If the conversation already
    holds a `WSCTX` value (from a prior `/kubit-connect init` or
@@ -341,8 +311,8 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      If exit code is 0, proceed to write. If non-zero (not ignored, or
      no git repo), skip the write and jump to the print-export fallback
      below; continue with instrumentation emission anyway.
-   - Upsert both `KUBIT_EXPORT_API_KEY=<minted-value>` and
-     `KUBIT_EXPORT_ENDPOINT={{KUBIT_EXPORT_ENDPOINT}}` into the chosen file.
+   - Upsert both `KUBIT_API_KEY=<minted-value>` and
+     `KUBIT_OTEL_ENDPOINT={{KUBIT_OTEL_ENDPOINT}}` into the chosen file.
      For each key independently:
      - If the file exists and already contains a line with that key,
        replace that single line in place — do not reorder other keys,
@@ -353,8 +323,8 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
    - **Fallback (gitignore check failed):** print a single line
      *"`<file>` not gitignored — printing export lines instead to avoid
      committing the key:"* followed by both
-     `export KUBIT_EXPORT_API_KEY=<minted-value>` and
-     `export KUBIT_EXPORT_ENDPOINT={{KUBIT_EXPORT_ENDPOINT}}`. This is the
+     `export KUBIT_API_KEY=<minted-value>` and
+     `export KUBIT_OTEL_ENDPOINT={{KUBIT_OTEL_ENDPOINT}}`. This is the
      only place the key is allowed to leave the env-file write target.
      Continue to step 7.
 
@@ -371,15 +341,16 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      - JS / TS: `pnpm-lock.yaml` → `pnpm`; `yarn.lock` → `yarn`;
        `bun.lockb` → `bun`; else `package-lock.json` / `package.json`
        → `npm`.
-   - **Dep list** per language — always `kubit-otel` (Python) or
-     `@kubit-ai/otel` (TypeScript), plus any extras the chosen sink
+   - **Dep list** per language — always the standard OpenTelemetry
+     OTLP HTTP exporter packages, plus any extras the chosen sink
      adapter's §4 names (e.g. `braintrust[otel]` on
      `sink-braintrust.md`), plus the LangChain extras from
      `source-langchain.md` §4 when `langchain` is in
      `sources_detected`:
-     - Python: `kubit-otel` + sink-adapter extras. LangChain extras
-       depend on the sink and (for Braintrust) the path chosen in
-       step 1's detection trap:
+     - Python: `opentelemetry-api`, `opentelemetry-sdk`,
+       `opentelemetry-exporter-otlp-proto-http` + sink-adapter
+       extras. LangChain extras depend on the sink and (for
+       Braintrust) the path chosen in step 1's detection trap:
        - Langfuse sink → no extra package (`langfuse.langchain`
          ships inside `langfuse >= 3`).
        - Braintrust sink, Path A (native callback) → no extra
@@ -400,33 +371,30 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
          `source-langchain.md` §4 for the
          `TypeError: wrap_function_wrapper() got an unexpected keyword argument 'module'`
          failure mode.
-     - TypeScript: `@kubit-ai/otel` (requires
-       `@opentelemetry/sdk-trace-base >= 2.0.0` as a peer — pin
-       `@opentelemetry/sdk-node` / `sdk-trace-base` / `sdk-trace-node` /
-       `resources` to the same `^2.x` major the project already uses)
-       + sink-adapter extras + the sink-specific LangChain extras
-       when `langchain` is in sources:
+     - TypeScript: `@opentelemetry/api`,
+       `@opentelemetry/exporter-trace-otlp-proto`,
+       `@opentelemetry/resources`, `@opentelemetry/sdk-trace-base`,
+       `@opentelemetry/sdk-trace-node` (match the project's existing
+       OTel SDK major when any of `@opentelemetry/*` is already
+       declared; otherwise install the latest) + sink-adapter extras
+       + the sink-specific LangChain extras when `langchain` is in
+       sources:
        - Langfuse sink → add `@langfuse/langchain`.
        - Braintrust sink, Path A (native callback) → add
          `@braintrust/langchain-js`. Kubit gets nothing from
          LangChain on this path; surface that to the user.
        - Braintrust sink, Path B (parallel pipelines, recommended
          on TS) → add `@arizeai/openinference-instrumentation-langchain`
-         alongside `@braintrust/langchain-js` (which stays in user
-         code as the Braintrust callback). Kubit's bootstrap on
-         this path comes from `source-langchain.md` §3 Path B (TS),
-         which uses its own `NodeSDK` with `KubitSpanProcessor` —
-         do **not** install `@braintrust/otel` or call
+         and `@opentelemetry/sdk-node` alongside
+         `@braintrust/langchain-js` (which stays in user code as
+         the Braintrust callback). Kubit's bootstrap on this path
+         comes from `source-langchain.md` §3 Path B (TS), which uses
+         its own `NodeSDK` with `BatchSpanProcessor(OTLPTraceExporter)`
+         — do **not** install `@braintrust/otel` or call
          `setupOtelCompat()` on the LangChain path; they don't
          bridge the callback into OTel on TS. Do **not** install
          `@traceloop/instrumentation-langchain` — verified broken
          on TS (discards `parentRunId`, see Gotchas).
-         **Precondition:** the published `@kubit-ai/otel` must
-         allow OpenInference scopes (`@arizeai/openinference`)
-         through its default span filter. If the installed SDK
-         version doesn't yet, OpenInference spans are silently
-         dropped before reaching Kubit. Surface this requirement
-         in the confirmation before adding the OpenInference dep.
    - **Edit the manifest first, then install.** Add the dep(s) to
      `pyproject.toml` / `requirements.txt` / `package.json` matching
      the project's existing style. Then run the matching install
@@ -446,11 +414,11 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
    - **Sink selected (`sink != none`).** Load
      `{{KUBIT_CONFIG_DIR}}/skills/kubit-integrate/references/frameworks/sink-<sink>.md`.
      That adapter's §3 is the *specification* of what Kubit code must
-     end up in the program (import + `KubitSpanProcessor` / `attach`
-     / `configure` call, plus any assertions §3 carries). Treat
-     placement and syntactic style (variable names, import grouping,
-     sync vs async, quote style) as adaptable — match the surrounding
-     file's conventions.
+     end up in the program (imports + `BatchSpanProcessor(OTLPSpanExporter(...))`
+     / `BatchSpanProcessor(new OTLPTraceExporter({...}))` wiring,
+     plus any assertions §3 carries). Treat placement and syntactic
+     style (variable names, import grouping, sync vs async, quote
+     style) as adaptable — match the surrounding file's conventions.
 
      If the adapter's §2 has a `### Prerequisites` subsection, surface
      it verbatim and require explicit `y/N` opt-in before any file
@@ -493,11 +461,13 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      remind the user about coverage expectations.
 
    - **No sink (`sink == none`).** Kubit becomes the sole sink via
-     `source-otel-genai.md` §3. Plain `configure()` (Python) /
-     `configure({ apiKey })` (TypeScript) stands up a Kubit-owned
-     `NodeTracerProvider`; every detected `TracerProvider`-agnostic
-     source (`vercel-ai`, `otel-genai`) resolves to it the moment
-     the bootstrap runs.
+     `source-otel-genai.md` §3. The standalone bootstrap
+     (`TracerProvider` + `BatchSpanProcessor(OTLPSpanExporter(...))`
+     in Python; `NodeTracerProvider` with
+     `spanProcessors: [BatchSpanProcessor(new OTLPTraceExporter(...))]`
+     in TypeScript) stands up a Kubit-owned provider; every detected
+     `TracerProvider`-agnostic source (`vercel-ai`, `otel-genai`)
+     resolves to it the moment the bootstrap runs.
 
      The Next.js Node/Edge guard from `source-vercel-ai.md` §2/§3
      applies when `vercel-ai` is in `sources_detected`. Wire only
@@ -505,19 +475,21 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      the repo has a `.ts`/`.node.ts` split, or gate the bootstrap
      import on `process.env.NEXT_RUNTIME === 'nodejs'`.
 
-   - **Substitute service metadata placeholders** in Python snippets
-     before showing any diff, **only when present** (i.e. only in
-     forms that carry `service_name=`/`service_version=`/
-     `resource_attributes=`). Resolve from `pyproject.toml` —
+   - **Substitute service metadata placeholders** in Python and TS
+     snippets before showing any diff, **only when present** (i.e.
+     only in forms that carry a `Resource.create({"service.name": …})`
+     literal in Python, or a `resourceFromAttributes({ "service.name":
+     … })` literal in TS). Resolve from `pyproject.toml` —
      `[project].name` / `[project].version`, falling back to
-     `[tool.poetry].name` / `[tool.poetry].version`. If neither is
-     present, fall back to the normalised repo directory name
-     (lowercase; spaces/underscores → hyphens) and `"0.1.0"`. When
-     `resource_attributes=` is present, emit
-     `{"deployment.environment": "dev"}` as a literal — the user is
-     expected to edit this per deploy target. These are scaffolded
-     values, not runtime config; bake them in as string literals so
-     the user can grep and edit after emission.
+     `[tool.poetry].name` / `[tool.poetry].version` (Python repos);
+     or `package.json#name` / `package.json#version` (TS repos). If
+     neither is present, fall back to the normalised repo directory
+     name (lowercase; spaces/underscores → hyphens) and `"0.1.0"`.
+     The `"deployment.environment": "dev"` line in Python is a
+     literal — the user is expected to edit it per deploy target.
+     These are scaffolded values, not runtime config; bake them in
+     as string literals so the user can grep and edit after
+     emission.
 
    - **Hook into `python-dotenv` when present.** If `python-dotenv`
      is among the project's deps and the project's existing
@@ -525,9 +497,9 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      bootstrap file must also call `load_dotenv()` at the top —
      before reading any env var. Otherwise the bootstrap fires
      before `main()` runs `load_dotenv()`, so env-driven knobs
-     (`KUBIT_EXPORT_API_KEY`, `BRAINTRUST_OTEL_COMPAT`, …) are unset
-     at bootstrap time and the user has to remember to `export`
-     everything in their shell instead. Verbatim addition to the top
+     (`KUBIT_API_KEY`, `KUBIT_OTEL_ENDPOINT`, `BRAINTRUST_OTEL_COMPAT`,
+     …) are unset at bootstrap time and the user has to remember to
+     `export` everything in their shell instead. Verbatim addition to the top
      of the Python bootstrap (right under the header comment, before
      any `os.environ.get` reads):
      ```python
@@ -738,13 +710,11 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      `BraintrustCallbackHandler` (callback path, unchanged) and to
      Kubit via `@arizeai/openinference-instrumentation-langchain`
      on a separate `NodeSDK` — the two run in parallel, no shared
-     OTel pipeline. Verify your `@kubit-ai/otel` allows
-     OpenInference scopes through its default export filter — if
-     not, the OpenInference spans are silently dropped (see
-     Gotchas). Do not install `@traceloop/instrumentation-langchain`
-     — it discards `parentRunId` and produces disconnected spans
-     (see Gotchas). See `source-langchain.md` §3 Path B (TS) for
-     the bootstrap snippet."*
+     OTel pipeline. Do not install
+     `@traceloop/instrumentation-langchain` — it discards
+     `parentRunId` and produces disconnected spans (see Gotchas).
+     See `source-langchain.md` §3 Path B (TS) for the bootstrap
+     snippet."*
 
    The snippet itself was already surfaced in step 8's LangChain
    hand-off; these reminders set the user's expectation about
@@ -757,11 +727,11 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
 
 - Never fetch trace data or metrics; delegate to `/kubit-inspect` or
   `/kubit-report`.
-- Never echo the minted `KUBIT_EXPORT_API_KEY` back to the user once
+- Never echo the minted `KUBIT_API_KEY` back to the user once
   received. The detected env file is the only write target; the
   shell-export fallback prints it exactly once (step 6) and never
   again.
-- A pasted `KUBIT_EXPORT_API_KEY` (step 5's `pasted` branch) is treated
+- A pasted `KUBIT_API_KEY` (step 5's `pasted` branch) is treated
   identically to a minted one once accepted: never echoed, never
   logged, written only to the detected env file or the print-export
   fallback. The skill does not validate the pasted key against the MCP
@@ -798,22 +768,16 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
   existing" branches never create a workspace. On any
   `workspace_create` or `switch` failure, surface the error and stop
   — no silent retry.
-- The Node path requires `@opentelemetry/sdk-trace-base >= 2.0.0`
-  (and `sdk-trace-node` / `resources` on the same major). On v1 the
-  skill exits with an upgrade message in step 2; it does not emit
-  v1-compatible code and does not carry any v1/v2 compatibility
-  shims.
-- `@kubit-ai/otel` is Node-only. Its export path depends on
-  `@aws-sdk/client-kinesis`, which cannot load in Edge / Workers /
-  browser runtimes. For any repo whose entrypoint straddles runtimes
-  (Next.js `instrumentation.ts`, Cloudflare Workers, Vercel Edge,
-  Deno), the skill must wire Kubit only into the Node runtime —
-  either by choosing `instrumentation.node.ts` over
-  `instrumentation.ts` (Next.js splits on file suffix when present),
-  or by gating the Kubit bootstrap import on
-  `process.env.NEXT_RUNTIME === 'nodejs'`. Never import
-  `@kubit-ai/otel` from code that can be evaluated in an Edge
-  runtime.
+- `@opentelemetry/sdk-trace-node` is Node-only and cannot load in
+  Edge / Workers / browser runtimes. For any repo whose entrypoint
+  straddles runtimes (Next.js `instrumentation.ts`, Cloudflare
+  Workers, Vercel Edge, Deno), the skill must wire Kubit only into
+  the Node runtime — either by choosing `instrumentation.node.ts`
+  over `instrumentation.ts` (Next.js splits on file suffix when
+  present), or by gating the Kubit bootstrap import on
+  `process.env.NEXT_RUNTIME === 'nodejs'`. Never import the Kubit
+  bootstrap (or its `@opentelemetry/sdk-trace-node` peer) from code
+  that can be evaluated in an Edge runtime.
 
 ## Error Handling
 
@@ -827,12 +791,10 @@ messages are in the sub-bullets.
      "direct SDK, no source" message from step 2 and exit 0.
    - Confirmation declined → exit 0.
    - Multi-sink prompt aborted → exit 0.
-   - TS/Node path with `@opentelemetry/sdk-trace-base` (or
-     `sdk-trace-node`) `< 2.0.0` → print the upgrade message from
-     step 2 and exit 0.
-   - Adapter file missing *or* `{{KUBIT_EXPORT_ENDPOINT}}` literal
-     still present in the adapter body → fatal: *"Skill install is
-     corrupt: re-run `npx @kubit-ai/agent-plugin`."*
+   - Adapter file missing *or* an unsubstituted `KUBIT_*` template
+     marker (e.g. a literal double-brace `KUBIT_OTEL_ENDPOINT`
+     reference) still present in the adapter body → fatal: *"Skill
+     install is corrupt: re-run `npx @kubit-ai/agent-plugin`."*
    - Braintrust Prerequisites declined (step 8) → exit 0 with
      *"Skipped Braintrust instrumentation. Re-run after enabling
      OTel-compat mode for your project."*
@@ -900,8 +862,10 @@ Output: Detected sink `langfuse` (OTel shape — `@langfuse/otel` in
 `package.json`). Workspace context from `/kubit-connect` shows current
 workspace `payments-prod` in org `acme`. Skill prints current + other
 workspaces, user picks option 1 (use current). Mints a fresh key,
-writes `KUBIT_EXPORT_API_KEY` into `.env`, installs the SDK, merges
-wiring into the existing `@langfuse/otel` site. Close-out prints:
+writes `KUBIT_API_KEY` into `.env`, installs
+`@opentelemetry/exporter-trace-otlp-proto` + peers, merges
+`BatchSpanProcessor(OTLPTraceExporter(...))` into the existing
+`@langfuse/otel` site. Close-out prints:
 ```
 Kubit workspace "payments-prod" selected; new API key written to .env
 Kubit wiring merged into src/payments/otel.ts alongside langfuse.
@@ -912,8 +876,9 @@ Verify with: node -e "..."
 Input: *"turn on Kubit for this Next.js app"*
 Output: Detected source `vercel-ai`, no sinks. Confirms Kubit will
 be the sole sink. Onboards workspace, mints key, writes `.env.local`,
-runs `pnpm add @kubit-ai/otel`. Falls through to `source-otel-genai.md`
-§3 TS template (Vercel AI delegates to it). Next.js layout: chooses
+runs `pnpm add @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node`.
+Falls through to `source-otel-genai.md` §3 TS template (Vercel AI
+delegates to it). Next.js layout: chooses
 `instrumentation.node.ts` over `instrumentation.ts` to avoid the
 Edge runtime. Standalone bootstrap + entrypoint edit applied.
 Close-out:
@@ -966,9 +931,8 @@ here are either resolved or documented._
 - [ ] `source-otel-genai.md` — verified as sole-sink template
 - [ ] `source-langchain.md` — Path B (OTel-native, Python) verified
       end-to-end (April 2026). Path B TS (parallel pipelines with
-      OpenInference) verified end-to-end (April 2026), gated on the
-      Kubit SDK allowlist update — see Gotchas. Path A (native
-      callback) needs re-verify after the §3 / §6
+      OpenInference) verified end-to-end (April 2026). Path A
+      (native callback) needs re-verify after the §3 / §6
       Kubit-doesn't-see-spans note.
 
 **Verified gotchas (April 2026):**
@@ -1011,21 +975,6 @@ here are either resolved or documented._
   TS+LangChain+Braintrust path instead — it threads `parentRunId`
   correctly via `trace.setSpanContext(context.active(), parentCtx)`.
   Caught by `source-langchain.md` §3 Path B (TS).
-- **Kubit SDK default span filter requires an OpenInference
-  allowlist for the TS+LangChain pattern** (April 2026).
-  `@kubit-ai/otel`'s `isDefaultExportSpan` filter only allows
-  scopes `kubit-sdk` / `langfuse-sdk` / `ai` plus spans carrying
-  `gen_ai.*` attributes. OpenInference's LangChain instrumentor
-  emits `openinference.*` and `llm.*` attrs (not `gen_ai.*`), so
-  its spans are filtered out before reaching the export queue.
-  **Precondition:** the published `@kubit-ai/otel` must include
-  `@arizeai/openinference` in its
-  `KNOWN_LLM_INSTRUMENTATION_SCOPE_PREFIXES` (or the equivalent
-  allowlist constant in the user's SDK version). The skill flags
-  this requirement before installing OpenInference deps; the user
-  verifies their SDK version before proceeding. Once the SDK
-  allowlist update lands in a published version, this Gotcha can
-  be tightened to a specific minimum-version requirement.
 - **`setupOtelCompat()` (TS) does not bridge
   `BraintrustCallbackHandler` into OTel** — TypeScript analog of
   the Python `BRAINTRUST_OTEL_COMPAT` issue above. Only swaps
@@ -1037,17 +986,14 @@ here are either resolved or documented._
   `setupOtelCompat()` + `BraintrustSpanProcessor` shape is still
   correct in non-LangChain TS combinations (Vercel AI, manual
   OTel) where the user emits OTel spans directly.
-- **Next.js auto-instrumentation orphans Vercel AI spans**
-  (verified `next@15.x`, `ai@4.x`, April 2026). Registering a
-  global `TracerProvider` activates Next.js's built-in OTel
-  auto-instrumentation; the route's HTTP span (`scope=next.js`)
-  becomes the parent of every AI SDK span, and Kubit's default
-  export filter drops it, orphaning the children. The Kubit
-  transformer only promotes `parentId === null` spans to traces,
-  so `traces_emitted=0` and only `enriched_observation` rows land.
-  Fix: wrap each top-level Vercel AI SDK call in
-  `context.with(ROOT_CONTEXT, () => …)` from `@opentelemetry/api`
-  to re-root it. Cannot be fixed inside `@kubit-ai/otel` —
-  silently promoting orphans corrupts legitimate cross-service
-  traces. Surfaced in `source-vercel-ai.md` §3 and in the step 9
-  close-out when `vercel-ai` + Next.js are detected.
+- **Next.js auto-instrumentation parents Vercel AI spans on the
+  HTTP route span** (verified `next@15.x`, `ai@4.x`, April 2026).
+  Registering a global `TracerProvider` activates Next.js's
+  built-in OTel auto-instrumentation; the route's HTTP span
+  (`scope=next.js`) becomes the parent of every AI SDK span,
+  which makes the trace shape less useful in the Kubit dashboard
+  than it should be. Fix: wrap each top-level Vercel AI SDK call
+  in `context.with(ROOT_CONTEXT, () => …)` from
+  `@opentelemetry/api` to re-root it. Surfaced in
+  `source-vercel-ai.md` §3 and in the step 9 close-out when
+  `vercel-ai` + Next.js are detected.

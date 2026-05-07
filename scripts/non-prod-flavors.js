@@ -8,16 +8,13 @@
 //
 // To add a new non-prod environment, add a key here. The keys themselves
 // are the allowlist — install.js does not need a separate constant.
-//
-// Replace the stg placeholders below with the real staging hostnames
-// before running an install with KUBIT_FLAVOR=stg.
 module.exports = {
   int: {
-    exportEndpoint: 'https://kubit-ingest-dev.kubit.ai/token',
+    otelEndpoint: 'https://otel-dev.kubit.ai/v1/traces',
     mcpUrl: 'https://agent-int.kubit.ai/mcp',
   },
   stg: {
-    exportEndpoint: 'https://kubit-ingest-dev.kubit.ai/token',
+    otelEndpoint: 'https://otel-dev.kubit.ai/v1/traces',
     mcpUrl: 'https://agent-stg.kubit.ai/mcp',
   },
 };

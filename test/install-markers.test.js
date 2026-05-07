@@ -6,20 +6,20 @@ const path = require('path');
 const { substituteKubitMarkers, copySkillSibling, PROD_FLAVOR, resolveFlavor } = require('../bin/install.js');
 
 (function testSubstituteKubitMarkersUnit() {
-  const body = 'runtime={{KUBIT_RUNTIME}} dir={{KUBIT_CONFIG_DIR}} scope={{KUBIT_SCOPE}} endpoint={{KUBIT_EXPORT_ENDPOINT}}';
+  const body = 'runtime={{KUBIT_RUNTIME}} dir={{KUBIT_CONFIG_DIR}} scope={{KUBIT_SCOPE}} endpoint={{KUBIT_OTEL_ENDPOINT}}';
   const ctx = {
     runtime: 'claude',
     configDir: '/tmp/cfg',
     scope: 'global',
-    exportEndpoint: 'https://example.test/token',
+    otelEndpoint: 'https://example.test/v1/traces',
   };
   const out = substituteKubitMarkers(body, ctx);
   assert.strictEqual(
     out,
-    'runtime=claude dir=/tmp/cfg scope=global endpoint=https://example.test/token',
+    'runtime=claude dir=/tmp/cfg scope=global endpoint=https://example.test/v1/traces',
     `unexpected substitution output: ${out}`
   );
-  assert.ok(out.includes('https://example.test/token'), 'endpoint not substituted');
+  assert.ok(out.includes('https://example.test/v1/traces'), 'endpoint not substituted');
   assert.ok(!out.includes('{{'), 'template markers left unresolved');
 })();
 
@@ -35,11 +35,11 @@ const { substituteKubitMarkers, copySkillSibling, PROD_FLAVOR, resolveFlavor } =
     fs.mkdirSync(path.join(src, 'references', 'frameworks'), { recursive: true });
     fs.writeFileSync(
       path.join(src, 'references', 'README.md'),
-      'endpoint={{KUBIT_EXPORT_ENDPOINT}}'
+      'endpoint={{KUBIT_OTEL_ENDPOINT}}'
     );
     fs.writeFileSync(
       path.join(src, 'references', 'frameworks', 'fixture.md'),
-      '# header {{KUBIT_EXPORT_ENDPOINT}}\ntoken: "{{KUBIT_EXPORT_ENDPOINT}}"'
+      '# header {{KUBIT_OTEL_ENDPOINT}}\ntoken: "{{KUBIT_OTEL_ENDPOINT}}"'
     );
     const raw = Buffer.from([0x00, 0x7b, 0x7b, 0xff]); // contains literal "{{" bytes
     fs.writeFileSync(path.join(src, 'binary.bin'), raw);
@@ -48,19 +48,19 @@ const { substituteKubitMarkers, copySkillSibling, PROD_FLAVOR, resolveFlavor } =
       runtime: 'claude',
       configDir: '/tmp/cfg',
       scope: 'global',
-      exportEndpoint: 'https://example.test/token',
+      otelEndpoint: 'https://example.test/v1/traces',
     };
     copySkillSibling(path.join(src, 'references'), path.join(dest, 'references'), ctx);
     copySkillSibling(path.join(src, 'binary.bin'), path.join(dest, 'binary.bin'), ctx);
 
     const readmeOut = fs.readFileSync(path.join(dest, 'references', 'README.md'), 'utf8');
-    assert.strictEqual(readmeOut, 'endpoint=https://example.test/token');
+    assert.strictEqual(readmeOut, 'endpoint=https://example.test/v1/traces');
 
     const fixtureOut = fs.readFileSync(path.join(dest, 'references', 'frameworks', 'fixture.md'), 'utf8');
     assert.ok(!fixtureOut.includes('{{'), 'nested .md still has unresolved markers');
     assert.strictEqual(
       fixtureOut,
-      '# header https://example.test/token\ntoken: "https://example.test/token"'
+      '# header https://example.test/v1/traces\ntoken: "https://example.test/v1/traces"'
     );
 
     const binaryOut = fs.readFileSync(path.join(dest, 'binary.bin'));
@@ -73,10 +73,10 @@ const { substituteKubitMarkers, copySkillSibling, PROD_FLAVOR, resolveFlavor } =
 (function testProdFlavorShape() {
   // PROD_FLAVOR is the only endpoint pair baked into the shipped install.js.
   // It must be complete, https, and must not carry any non-prod host.
-  assert.ok(/^https:\/\//.test(PROD_FLAVOR.exportEndpoint), 'prod exportEndpoint must be https');
+  assert.ok(/^https:\/\//.test(PROD_FLAVOR.otelEndpoint), 'prod otelEndpoint must be https');
   assert.ok(/^https:\/\//.test(PROD_FLAVOR.mcpUrl), 'prod mcpUrl must be https');
-  assert.ok(!PROD_FLAVOR.exportEndpoint.includes('-dev'), 'prod must not reference the dev ingest host');
-  assert.ok(!PROD_FLAVOR.exportEndpoint.includes('-stg'), 'prod must not reference the stg ingest host');
+  assert.ok(!PROD_FLAVOR.otelEndpoint.includes('-dev'), 'prod must not reference the dev ingest host');
+  assert.ok(!PROD_FLAVOR.otelEndpoint.includes('-stg'), 'prod must not reference the stg ingest host');
   assert.ok(!PROD_FLAVOR.mcpUrl.includes('agent-int'), 'prod must not reference the dev MCP host');
   assert.ok(!PROD_FLAVOR.mcpUrl.includes('agent-stg'), 'prod must not reference the stg MCP host');
 })();
@@ -102,7 +102,7 @@ const NONPROD_PATH = path.join(__dirname, '..', 'scripts', 'non-prod-flavors.js'
   assert.ok(fs.existsSync(NONPROD_PATH), `scripts/non-prod-flavors.js must exist in source tree (expected at ${NONPROD_PATH})`);
   withFlavorEnv(undefined, () => {
     const resolved = resolveFlavor();
-    assert.ok(resolved.exportEndpoint.includes('kubit-ingest-dev'), `expected dev ingest host, got ${resolved.exportEndpoint}`);
+    assert.ok(resolved.otelEndpoint.includes('otel-dev'), `expected dev otel host, got ${resolved.otelEndpoint}`);
     assert.ok(resolved.mcpUrl.includes('agent-int'), `expected dev MCP host, got ${resolved.mcpUrl}`);
   });
 })();
@@ -114,7 +114,7 @@ const NONPROD_PATH = path.join(__dirname, '..', 'scripts', 'non-prod-flavors.js'
     const resolved = resolveFlavor();
     const stgEntry = require(NONPROD_PATH).stg;
     assert.ok(stgEntry, 'non-prod-flavors.js must export a stg entry');
-    assert.strictEqual(resolved.exportEndpoint, stgEntry.exportEndpoint, 'stg exportEndpoint mismatch');
+    assert.strictEqual(resolved.otelEndpoint, stgEntry.otelEndpoint, 'stg otelEndpoint mismatch');
     assert.strictEqual(resolved.mcpUrl, stgEntry.mcpUrl, 'stg mcpUrl mismatch');
   });
 })();

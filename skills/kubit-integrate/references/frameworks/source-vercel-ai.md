@@ -44,19 +44,18 @@ Under OTel JS SDK v2 there are two shapes:
 
 - *No provider yet.* The repo imports `ai` / `@ai-sdk/*` but never
   stands up a `NodeSDK` / `NodeTracerProvider`. The skill emits the
-  standalone `configure({ apiKey })` snippet — `@kubit-ai/otel`
-  constructs a fresh `NodeTracerProvider` with
-  `spanProcessors: [KubitSpanProcessor]` and registers it as the
-  global. Vercel AI's tracer resolves to it.
+  standalone snippet from `source-otel-genai.md` §3 — a fresh
+  `NodeTracerProvider` with a `BatchSpanProcessor(OTLPTraceExporter)`
+  shipping spans to Kubit, registered as the global. Vercel AI's
+  tracer resolves to it.
 - *Provider already constructed.* The repo has a
   `new NodeSDK({ spanProcessors: [...] })` or
   `new NodeTracerProvider({ spanProcessors: [...] })`. The skill
-  merges `new KubitSpanProcessor({ apiKey })` into that same
-  `spanProcessors` array. It does not call `configure()` in that
-  case, because `configure()` would register a second, parallel
-  provider and clobber the existing one (v2 removed the post-hoc
-  `addSpanProcessor` API, so the v1 "attach to whatever is global"
-  path does not exist).
+  appends a Kubit `BatchSpanProcessor(OTLPTraceExporter(...))` to
+  that same `spanProcessors` array. It does not stand up a second
+  provider, because v2 removed the post-hoc `addSpanProcessor` API
+  and a parallel `provider.register()` would clobber the existing
+  one.
 
 ## 3. Bootstrap snippet
 
@@ -76,32 +75,27 @@ traced. See
 Call this out in the close-out so the user doesn't wonder why the
 verification span lands but their real `generateText` calls don't.
 
-**Gotcha — `@kubit-ai/otel` is Node-only.** The Kubit export path
-depends on `@aws-sdk/client-kinesis`, which cannot load in Edge /
-Workers / browser runtimes. In Next.js, `instrumentation.ts` is
-evaluated in **both** the `nodejs` and `edge` runtimes — a bare
-`import '@kubit-ai/otel'` there will crash the Edge worker at
-module load. The skill must either place the Kubit bootstrap in
-`instrumentation.node.ts` (Next.js loads this file only in the
-Node runtime when it exists alongside `instrumentation.ts`), or
-gate the import on `process.env.NEXT_RUNTIME === 'nodejs'` /
-`process.env.NEXT_RUNTIME !== 'edge'` inside
-`instrumentation.ts`'s `register()` function. Never emit a
-top-level `import '@kubit-ai/otel'` or `configure(...)` call in a
-file that can run in Edge.
+**Gotcha — `@opentelemetry/sdk-trace-node` is Node-only.** It cannot
+load in Edge / Workers / browser runtimes. In Next.js,
+`instrumentation.ts` is evaluated in **both** the `nodejs` and
+`edge` runtimes — a bare `import './kubit-instrumentation'` there
+will crash the Edge worker at module load. The skill must either
+place the Kubit bootstrap in `instrumentation.node.ts` (Next.js
+loads this file only in the Node runtime when it exists alongside
+`instrumentation.ts`), or gate the import on
+`process.env.NEXT_RUNTIME === 'nodejs'` /
+`process.env.NEXT_RUNTIME !== 'edge'` inside `instrumentation.ts`'s
+`register()` function. Never emit a top-level `import` of the
+Kubit bootstrap in a file that can run in Edge.
 
 **Gotcha — Next.js HTTP span orphans AI SDK children.** Next.js's
 built-in OTel auto-instrumentation activates the moment any global
-`TracerProvider` is registered (which `configure()` does). The route
-handler then emits an HTTP span (`POST /…`, `scope=next.js`) and
-every Vercel AI SDK span (`streamText`, tool calls, nested
-`generateObject`, `embed*`) attaches to it as a child. Kubit's
-default export filter drops the Next.js HTTP span — it carries
-neither `gen_ai.*` attributes nor an allowlisted scope — so the AI
-children land at ingest with a `parentSpanId` pointing at a span
-Kubit never sees. The transformer only promotes spans with
-`parentId === null` to traces, so `traces_emitted=0` and only
-`enriched_observation` rows appear.
+`TracerProvider` is registered. The route handler then emits an
+HTTP span (`POST /…`, `scope=next.js`) and every Vercel AI SDK
+span (`streamText`, tool calls, nested `generateObject`, `embed*`)
+attaches to it as a child. The HTTP span is uninteresting noise
+inside Kubit and parents the AI children at ingest, which makes
+the trace shape less useful in the dashboard than it should be.
 
 Workaround (user-side): detach each top-level AI SDK call from the
 Next.js HTTP span by re-rooting it on `ROOT_CONTEXT`. The AI call
@@ -127,9 +121,7 @@ SDK entrypoint (`streamText`, `generateText`, `embed`, `embedMany`,
 `generateObject`, `streamObject`). Easy to forget when adding new
 endpoints — track it in code review. Note that any non-AI
 OTel-aware work in the same route loses its connection to the HTTP
-span, by design. Cannot be fixed inside `@kubit-ai/otel`: silently
-promoting orphan children to root would corrupt legitimate
-cross-service traces where the parent lives in another process.
+span, by design.
 
 ### Python
 
@@ -139,33 +131,49 @@ Not applicable — see §1. Route Python services through `otel-genai`.
 
 ```typescript
 // Generated by /kubit-integrate for vercel-ai on <YYYY-MM-DD>.
-// Requires KUBIT_EXPORT_API_KEY env var.
+// Requires KUBIT_API_KEY and KUBIT_OTEL_ENDPOINT env vars.
 // Reminder: set `experimental_telemetry: { isEnabled: true }` on each
 // generateText / streamText / embed / embedMany call you want traced;
 // the AI SDK does not emit spans without that flag.
-import { configure } from "@kubit-ai/otel";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
-configure({ apiKey: process.env.KUBIT_EXPORT_API_KEY! });
+const provider = new NodeTracerProvider({
+  resource: resourceFromAttributes({ "service.name": "<service-name>" }),
+  spanProcessors: [
+    new BatchSpanProcessor(new OTLPTraceExporter({
+      url: process.env.KUBIT_OTEL_ENDPOINT!,
+      headers: { "x-api-key": process.env.KUBIT_API_KEY! },
+    })),
+  ],
+});
+provider.register();
 ```
 
-### Merge form — add `KubitSpanProcessor` to the user's existing `spanProcessors`
+### Merge form — add an OTLP exporter to the user's existing `spanProcessors`
 
 Used when §3a finds an existing wiring site (the user already owns a
 `TracerProvider` or a `NodeSDK` that Vercel AI's tracer resolves to).
 OTel JS SDK v2 requires processors at construction time — the merge
 edits the existing `spanProcessors: [...]` array in place. Do not
-add a second `configure({ apiKey })` call; that would register a
-parallel `NodeTracerProvider` and clobber the existing one.
+stand up a second `NodeTracerProvider`; a parallel
+`provider.register()` would clobber the existing one.
 
 ```typescript
 // Add to the module that already constructs the TracerProvider /
 // NodeSDK that Vercel AI's tracer resolves to.
-import { KubitSpanProcessor } from "@kubit-ai/otel";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 
 const sdk = new NodeSDK({
   spanProcessors: [
     // …existing processors stay first…,
-    new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY! }),
+    new BatchSpanProcessor(new OTLPTraceExporter({
+      url: process.env.KUBIT_OTEL_ENDPOINT!,
+      headers: { "x-api-key": process.env.KUBIT_API_KEY! },
+    })),
   ],
 });
 sdk.start();
@@ -187,16 +195,16 @@ TypeScript:
 - A `new NodeSDK({ spanProcessors: [...] })` or
   `new NodeTracerProvider({ spanProcessors: [...] })` /
   `new BasicTracerProvider({ spanProcessors: [...] })` construction
-  in a file that also imports from `ai` or `@ai-sdk/*`. Merge
-  `new KubitSpanProcessor({ apiKey: process.env.KUBIT_EXPORT_API_KEY! })`
-  into that `spanProcessors` array.
+  in a file that also imports from `ai` or `@ai-sdk/*`. Append
+  `new BatchSpanProcessor(new OTLPTraceExporter({ url: process.env.KUBIT_OTEL_ENDPOINT!, headers: { "x-api-key": process.env.KUBIT_API_KEY! } }))`
+  to that `spanProcessors` array.
 - A Next.js `instrumentation.node.ts` at repo root or under `src/`
   whose `register()` function sets up OTel — Vercel's recommended
   AI SDK tracing entrypoint and the only Next.js-supplied file
   guaranteed to run exclusively in the Node runtime. If that file
   constructs a `NodeSDK` / `NodeTracerProvider`, merge into its
-  `spanProcessors` array; otherwise emit the standalone
-  `configure(...)` form in §3 into this file.
+  `spanProcessors` array; otherwise emit the standalone form in §3
+  into this file.
 - A Next.js `instrumentation.ts` (without a `.node.ts` sibling) at
   repo root or under `src/` — evaluated in **both** `nodejs` and
   `edge` runtimes. Do NOT wire Kubit directly into this file.
@@ -207,16 +215,16 @@ TypeScript:
      `instrumentation.ts` (non-Kubit code that must run in Edge).
      Next.js dispatches by file suffix when `.node.ts` / `.edge.ts`
      exist.
-  2. Keep `instrumentation.ts` as-is but wrap the Kubit-import /
-     `configure()` call in a
+  2. Keep `instrumentation.ts` as-is but wrap the Kubit-import in a
      `if (process.env.NEXT_RUNTIME === 'nodejs') { ... }` guard
-     inside `register()`. Use a dynamic `await import('@kubit-ai/otel')`
-     so the Kubit module never evaluates in the Edge runtime.
+     inside `register()`. Use a dynamic
+     `await import('./kubit-instrumentation')` so
+     `@opentelemetry/sdk-trace-node` never evaluates in the Edge
+     runtime.
 - A call to `registerTelemetry(new OpenTelemetry(` imported from
   `ai` + `@ai-sdk/otel` that is NOT backed by a local `NodeSDK` /
   `NodeTracerProvider` construction → no v2 merge target; fall back
-  to the standalone `configure(...)` form in §3 and let Kubit own
-  the provider.
+  to the standalone form in §3 and let Kubit own the provider.
 
 If multiple files match, ask the user which one the agent's traces
 flow through.
@@ -235,9 +243,9 @@ in priority order:
   the Kubit import is wrapped in a
   `if (process.env.NEXT_RUNTIME === 'nodejs') { ... }` branch
   inside `register()`, using `await import('./kubit-instrumentation')`
-  so `@kubit-ai/otel` never evaluates in the Edge runtime. The skill
-  must never add a top-level `import './kubit-instrumentation';`
-  in this file.
+  so `@opentelemetry/sdk-trace-node` never evaluates in the Edge
+  runtime. The skill must never add a top-level
+  `import './kubit-instrumentation';` in this file.
 - The file referenced by `package.json`'s `main` — non-Next.js
   projects; add `import './kubit-instrumentation';` as the first
   import.
@@ -248,18 +256,17 @@ Python: not applicable — see §1.
 
 Required deps:
 
-- TypeScript: `npm install @kubit-ai/otel` (no framework extras — the
-  user already has `ai` / `@ai-sdk/*` per §1). Requires
-  `@opentelemetry/sdk-trace-base >= 2.0.0` as a peer — pin
-  `@opentelemetry/sdk-node` / `sdk-trace-base` / `sdk-trace-node` /
-  `resources` to the same `^2.x` major the project already uses.
+- TypeScript: `npm install @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node`
+  (no framework extras — the user already has `ai` / `@ai-sdk/*`
+  per §1). Match the project's existing OTel SDK major when any of
+  `@opentelemetry/*` is already declared.
 
 ## 5. Verification snippet
 
 TypeScript:
 
 ```bash
-KUBIT_EXPORT_API_KEY=<your-key> node -r ts-node/register -e "
+KUBIT_API_KEY=<your-key> KUBIT_OTEL_ENDPOINT=<your-endpoint> node -r ts-node/register -e "
 require('./kubit-instrumentation');
 const { trace } = require('@opentelemetry/api');
 trace.getTracer('kubit-sdk-verify').startSpan('hello-kubit').end();

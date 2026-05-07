@@ -9,11 +9,11 @@ exclusions on top).
 
 `bin/install.js` resolves one of three endpoint pairs at runtime:
 
-| Flavor | Selector                        | Ingest token endpoint                     | MCP server URL                   |
-| :----- | :------------------------------ | :---------------------------------------- | :------------------------------- |
-| `int`  | default (or `KUBIT_FLAVOR=int`) | `https://kubit-ingest-dev.kubit.ai/token` | `https://agent-int.kubit.ai/mcp` |
-| `stg`  | `KUBIT_FLAVOR=stg`              | `scripts/non-prod-flavors.js#stg` (placeholders — fill in before use) | `scripts/non-prod-flavors.js#stg` |
-| `prod` | published tarball               | `https://kubit-ingest.kubit.ai/token`     | `https://agent.kubit.ai/mcp`     |
+| Flavor | Selector                        | OTLP traces endpoint                                  | MCP server URL                   |
+| :----- | :------------------------------ | :---------------------------------------------------- | :------------------------------- |
+| `int`  | default (or `KUBIT_FLAVOR=int`) | `https://otel-dev.kubit.ai/v1/traces`                 | `https://agent-int.kubit.ai/mcp` |
+| `stg`  | `KUBIT_FLAVOR=stg`              | `https://otel-dev.kubit.ai/v1/traces`                 | `https://agent-stg.kubit.ai/mcp` |
+| `prod` | published tarball               | `https://otel.kubit.ai/v1/traces`                     | `https://agent.kubit.ai/mcp`     |
 
 Only the `prod` pair is hardcoded in `bin/install.js` (as `PROD_FLAVOR`).
 All non-prod flavors live in `scripts/non-prod-flavors.js` as a single
@@ -47,7 +47,7 @@ change.
 Override for any flavor:
 
 ```bash
-KUBIT_EXPORT_ENDPOINT=https://custom-host/token npx @kubit-ai/agent-plugin
+KUBIT_OTEL_ENDPOINT=https://custom-host/v1/traces npx @kubit-ai/agent-plugin
 ```
 
 The env var wins over the resolved export endpoint. The MCP URL has no
@@ -71,7 +71,7 @@ KUBIT_FLAVOR=stg node bin/install.js -c /tmp/kubit-stg -y
 ```
 
 By default `KUBIT_FLAVOR=int`, so the `int` entry of
-`scripts/non-prod-flavors.js` is used: `kubit-ingest-dev.kubit.ai` in
+`scripts/non-prod-flavors.js` is used: `otel-dev.kubit.ai` in
 substituted skill snippets and `agent-int.kubit.ai/mcp` in the merged
 MCP config. With `KUBIT_FLAVOR=stg` the installer reads the `stg` entry
 of the same file.
@@ -90,11 +90,11 @@ Verify the prod path without publishing:
 ```bash
 npm pack                                        # emits kubit-ai-agent-plugin-X.Y.Z.tgz
 tar tzf kubit-ai-agent-plugin-*.tgz | grep -E 'scripts|\.mcp\.json'   # expect: nothing
-grep -rE 'kubit-ingest-(dev|stg)|agent-(int|stg)' /tmp/kpack/package/  # expect: nothing
+grep -rE 'otel-dev\.kubit|agent-(int|stg)' /tmp/kpack/package/  # expect: nothing
 
 mkdir -p /tmp/kpack && tar xzf kubit-ai-agent-plugin-*.tgz -C /tmp/kpack
 node /tmp/kpack/package/bin/install.js -c /tmp/kubit-prod -y
-grep -r 'kubit-ingest.kubit.ai/token' /tmp/kubit-prod/skills          # prod host baked in
+grep -r 'otel.kubit.ai/v1/traces' /tmp/kubit-prod/skills  # prod host baked in
 ```
 
 Dist-tags and pre-release suffixes are covered in

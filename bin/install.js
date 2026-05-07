@@ -15,10 +15,10 @@ const PKG_ROOT = path.resolve(__dirname, '..');
 // ships. From the source tree, KUBIT_FLAVOR selects a key (default 'int');
 // when `npx @kubit-ai/agent-plugin` runs from the tarball, the file is
 // absent and PROD_FLAVOR wins regardless of KUBIT_FLAVOR.
-// `KUBIT_EXPORT_ENDPOINT=...` still overrides the resolved export endpoint —
+// `KUBIT_OTEL_ENDPOINT=...` still overrides the resolved OTLP endpoint —
 // used for internal testing against custom hosts.
 const PROD_FLAVOR = {
-  exportEndpoint: 'https://kubit-ingest.kubit.ai/token',
+  otelEndpoint: 'https://otel.kubit.ai/v1/traces',
   mcpUrl: 'https://agent.kubit.ai/mcp',
 };
 
@@ -37,15 +37,15 @@ function resolveFlavor() {
   if (!flavor) {
     fatal(`unknown KUBIT_FLAVOR: ${name} (expected one of: ${Object.keys(flavors).join(', ')})`);
   }
-  if (flavor.exportEndpoint && flavor.mcpUrl) {
+  if (flavor.otelEndpoint && flavor.mcpUrl) {
     return flavor;
   }
   return PROD_FLAVOR;
 }
 
 const FLAVOR = resolveFlavor();
-const KUBIT_EXPORT_ENDPOINT =
-  process.env.KUBIT_EXPORT_ENDPOINT || FLAVOR.exportEndpoint;
+const KUBIT_OTEL_ENDPOINT =
+  process.env.KUBIT_OTEL_ENDPOINT || FLAVOR.otelEndpoint;
 
 // Explicit allowlist of agents that ship. Entries whose source file doesn't
 // exist under agents/ yet are silently skipped (see the existsSync guards in
@@ -228,7 +228,7 @@ function substituteKubitMarkers(body, ctx) {
     .replace(/\{\{KUBIT_RUNTIME\}\}/g, ctx.runtime)
     .replace(/\{\{KUBIT_CONFIG_DIR\}\}/g, ctx.configDir)
     .replace(/\{\{KUBIT_SCOPE\}\}/g, ctx.scope)
-    .replace(/\{\{KUBIT_EXPORT_ENDPOINT\}\}/g, ctx.exportEndpoint);
+    .replace(/\{\{KUBIT_OTEL_ENDPOINT\}\}/g, ctx.otelEndpoint);
 }
 
 // Recursively copy a file or directory from src to dest. Markdown files get
@@ -394,7 +394,7 @@ async function installClaude(args) {
     runtime: 'claude',
     configDir: configBase,
     scope: args.local ? 'local' : 'global',
-    exportEndpoint: KUBIT_EXPORT_ENDPOINT,
+    otelEndpoint: KUBIT_OTEL_ENDPOINT,
   };
 
   for (const name of skillNames) {
@@ -538,7 +538,7 @@ async function installCursor(args) {
     runtime: 'cursor',
     configDir: configBase,
     scope: args.local ? 'local' : 'global',
-    exportEndpoint: KUBIT_EXPORT_ENDPOINT,
+    otelEndpoint: KUBIT_OTEL_ENDPOINT,
   };
 
   for (const name of skillNames) {
