@@ -63,7 +63,8 @@ const HELP = `kubit-agent-plugin — install the Kubit agent plugin into Claude 
 Usage:
   npx @kubit-ai/agent-plugin [options]
 
-The runtime (Claude Code, Cursor, or both) is always chosen interactively.
+The runtime (Claude Code, Cursor, or both) is chosen interactively unless
+--runtime is supplied.
 
 Location:
   -g, --global           (default) install to user config dir
@@ -73,6 +74,7 @@ Management:
   -u, --uninstall        Remove installed files for selected runtime(s)
   -y, --yes              Non-interactive; assume defaults
   -c, --config-dir <p>   Override the user config base dir (applies to Claude Code)
+  -r, --runtime <name>   Skip the runtime prompt: claude, cursor, or both
   -h, --help             Show this help
 `;
 
@@ -86,6 +88,7 @@ function parseArgs(argv) {
     yes: false,
     help: false,
     configDir: null,
+    runtime: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -98,6 +101,13 @@ function parseArgs(argv) {
       case '-c': case '--config-dir':
         args.configDir = argv[++i];
         if (!args.configDir) fatal(`${a} requires a path argument`);
+        break;
+      case '-r': case '--runtime':
+        args.runtime = argv[++i];
+        if (!args.runtime) fatal(`${a} requires a value: claude, cursor, or both`);
+        if (!['claude', 'cursor', 'both'].includes(args.runtime)) {
+          fatal(`${a}: unknown runtime '${args.runtime}' (expected claude, cursor, or both)`);
+        }
         break;
       default:
         fatal(`unknown option: ${a}\n\n${HELP}`);
@@ -608,13 +618,18 @@ async function main() {
 
   const mode = args.uninstall ? 'uninstall' : 'install';
 
-  // Runtime is always chosen interactively — no flag shortcut.
-  const runtimeIdx = await promptChoice(`Which runtime(s) to ${mode}?`, [
-    'Claude Code',
-    'Cursor',
-    'Both',
-  ], 0);
-  const runtimes = [['claude'], ['cursor'], ['claude', 'cursor']][runtimeIdx];
+  // Runtime: --runtime flag skips the prompt; otherwise ask interactively.
+  let runtimes;
+  if (args.runtime) {
+    runtimes = args.runtime === 'both' ? ['claude', 'cursor'] : [args.runtime];
+  } else {
+    const runtimeIdx = await promptChoice(`Which runtime(s) to ${mode}?`, [
+      'Claude Code',
+      'Cursor',
+      'Both',
+    ], 0);
+    runtimes = [['claude'], ['cursor'], ['claude', 'cursor']][runtimeIdx];
+  }
 
   // Resolve location
   if (!args.global && !args.local) {
