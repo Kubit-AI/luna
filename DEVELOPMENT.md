@@ -11,8 +11,8 @@ exclusions on top).
 
 | Flavor | Selector                        | OTLP traces endpoint                                  | MCP server URL                   |
 | :----- | :------------------------------ | :---------------------------------------------------- | :------------------------------- |
-| `int`  | default (or `KUBIT_FLAVOR=int`) | `https://otel-dev.kubit.ai/v1/traces`                 | `https://agent-int.kubit.ai/mcp` |
-| `stg`  | `KUBIT_FLAVOR=stg`              | `https://otel-dev.kubit.ai/v1/traces`                 | `https://agent-stg.kubit.ai/mcp` |
+| `int`  | default (or `KUBIT_FLAVOR=int`) | `https://otel-int.kubit.ai/v1/traces`                 | `https://agent-int.kubit.ai/mcp` |
+| `stg`  | `KUBIT_FLAVOR=stg`              | `https://otel-stg.kubit.ai/v1/traces`                 | `https://agent-stg.kubit.ai/mcp` |
 | `prod` | published tarball               | `https://otel.kubit.ai/v1/traces`                     | `https://agent.kubit.ai/mcp`     |
 
 Only the `prod` pair is hardcoded in `bin/install.js` (as `PROD_FLAVOR`).
@@ -71,7 +71,7 @@ KUBIT_FLAVOR=stg node bin/install.js -c /tmp/kubit-stg -y
 ```
 
 By default `KUBIT_FLAVOR=int`, so the `int` entry of
-`scripts/non-prod-flavors.js` is used: `otel-dev.kubit.ai` in
+`scripts/non-prod-flavors.js` is used: `otel-int.kubit.ai` in
 substituted skill snippets and `agent-int.kubit.ai/mcp` in the merged
 MCP config. With `KUBIT_FLAVOR=stg` the installer reads the `stg` entry
 of the same file.
@@ -90,7 +90,7 @@ Verify the prod path without publishing:
 ```bash
 npm pack                                        # emits kubit-ai-agent-plugin-X.Y.Z.tgz
 tar tzf kubit-ai-agent-plugin-*.tgz | grep -E 'scripts|\.mcp\.json'   # expect: nothing
-grep -rE 'otel-dev\.kubit|agent-(int|stg)' /tmp/kpack/package/  # expect: nothing
+grep -rE 'otel-(dev|int|stg)\.kubit|agent-(int|stg)' /tmp/kpack/package/  # expect: nothing
 
 mkdir -p /tmp/kpack && tar xzf kubit-ai-agent-plugin-*.tgz -C /tmp/kpack
 node /tmp/kpack/package/bin/install.js -c /tmp/kubit-prod -y

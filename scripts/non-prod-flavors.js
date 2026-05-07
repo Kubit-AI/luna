@@ -10,11 +10,11 @@
 // are the allowlist — install.js does not need a separate constant.
 module.exports = {
   int: {
-    otelEndpoint: 'https://otel-dev.kubit.ai/v1/traces',
+    otelEndpoint: 'https://otel-int.kubit.ai/v1/traces',
     mcpUrl: 'https://agent-int.kubit.ai/mcp',
   },
   stg: {
-    otelEndpoint: 'https://otel-dev.kubit.ai/v1/traces',
+    otelEndpoint: 'https://otel-stg.kubit.ai/v1/traces',
     mcpUrl: 'https://agent-stg.kubit.ai/mcp',
   },
 };

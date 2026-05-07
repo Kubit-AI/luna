@@ -102,7 +102,7 @@ const NONPROD_PATH = path.join(__dirname, '..', 'scripts', 'non-prod-flavors.js'
   assert.ok(fs.existsSync(NONPROD_PATH), `scripts/non-prod-flavors.js must exist in source tree (expected at ${NONPROD_PATH})`);
   withFlavorEnv(undefined, () => {
     const resolved = resolveFlavor();
-    assert.ok(resolved.otelEndpoint.includes('otel-dev'), `expected dev otel host, got ${resolved.otelEndpoint}`);
+    assert.ok(resolved.otelEndpoint.includes('otel-int'), `expected int otel host, got ${resolved.otelEndpoint}`);
     assert.ok(resolved.mcpUrl.includes('agent-int'), `expected dev MCP host, got ${resolved.mcpUrl}`);
   });
 })();
