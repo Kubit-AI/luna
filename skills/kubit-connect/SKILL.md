@@ -97,6 +97,7 @@ the user re-runs `/kubit-connect` when sign-in is done.
 - Refresh wsctx after 1 hour idle (not a security timeout — just re-pins the workspace)
 - orgId and workspaceId must always be passed as a pair to `switch`
 - Workspaces carrying the `[example: read-only, cannot mint api key]` tag in the `init` response are demo-only — surface the tag verbatim when listing them. If the user wants to instrument an app against one, route them to `/kubit-integrate` to switch to or create a real workspace.
+- Organizations in the `init` response may carry a `[created by: <name>]` annotation. Surface it verbatim alongside the org name (both for the current org and when listing other orgs) so the user can tell apart orgs they own from orgs created by colleagues.
 
 ## Examples
 
