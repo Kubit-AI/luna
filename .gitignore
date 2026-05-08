@@ -15,6 +15,9 @@ dist/
 .claude/
 .cursor/
 
+# Per-developer MCP overrides for project-scope sessions inside this repo.
+.mcp.json
+
 # Compiled Java class files
 *.class
 

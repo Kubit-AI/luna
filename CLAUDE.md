@@ -17,7 +17,6 @@ This repo is the `@kubit-ai/agent-plugin` npm package — an agent plugin that s
 
 ```
 luna/
-├── .mcp.json                # bundles the Kubit MCP server (OAuth)
 ├── bin/install.js           # npx installer for Claude Code + Cursor
 ├── skills/<name>/SKILL.md   # one dir per skill
 ├── agents/kubit-analyst.md  # subagent installed for Claude Code and Cursor
@@ -40,7 +39,7 @@ Each skill is `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `descripti
 
 When shipping a new skill, add it to `SHIPPED_SKILLS` and also update the skill table in `README.md` and the listing in `skills/help/SKILL.md` so they stay in sync.
 
-`bin/install.js` substitutes four template markers in every skill body at install time: `{{KUBIT_RUNTIME}}`, `{{KUBIT_CONFIG_DIR}}`, `{{KUBIT_SCOPE}}`, and `{{KUBIT_EXPORT_ENDPOINT}}`. The pass is a no-op on skills that don't reference these markers.
+`bin/install.js` substitutes three template markers in every skill body at install time: `{{KUBIT_RUNTIME}}`, `{{KUBIT_CONFIG_DIR}}`, and `{{KUBIT_SCOPE}}`. The pass is a no-op on skills that don't reference these markers.
 
 ## Versioning
 
@@ -59,16 +58,15 @@ Keep these limits in mind when editing skill copy so the instructions still work
 
 ## MCP
 
-Kubit MCP server is wired via OAuth (browser sign-in on first use); skills can assume it's configured. Dev (`.mcp.json` at repo root → `agent-int.kubit.ai/mcp`) is used only for project-scope sessions inside this repo and does **not** ship. Published installs get the URL constructed by `bin/install.js#mcpMerge()` from `FLAVOR.mcpUrl`. To change a non-prod URL edit the matching key in `scripts/non-prod-flavors.js`; for prod edit `PROD_FLAVOR` in `bin/install.js`. Never re-add `.mcp.json` to `package.json#files`.
+Kubit MCP server is wired via OAuth (browser sign-in on first use); skills can assume it's configured. The MCP URL is hardcoded in `bin/install.js#KUBIT_MCP_URL` and stamped into the user's MCP config by `mcpMerge()`. The `.mcp.json` at repo root is gitignored — devs working against a non-prod MCP keep their own copy locally.
 
 ## Publish hygiene
 
 End-user tarballs must not leak internal infrastructure. Rules:
 
-- **One source of prod URLs.** Only `bin/install.js#PROD_FLAVOR` holds shipped endpoints. Reference via `FLAVOR.exportEndpoint` / `FLAVOR.mcpUrl`; never hardcode elsewhere.
-- **Non-prod URLs are never in shipped files.** All non-prod flavors live in `scripts/non-prod-flavors.js` as a map keyed by flavor name. `resolveFlavor()` `require`s that file (present in source, absent in the tarball) and looks up `KUBIT_FLAVOR` (default `int`); the map's keys are the allowlist, so adding a new flavor is one new key. Source tree picks the chosen flavor; tarball falls back to `PROD_FLAVOR`. `KUBIT_EXPORT_ENDPOINT` still overrides any of them.
-- **Allowlist, not denylist.** `package.json#files` is authoritative; `.npmignore` is belt-and-braces. Keep out: internal hostnames (`*-dev.*`, `*-int.*`, `*-stg.*`), dev tooling (`scripts/`, `test/`, `docs/`, `DEVELOPMENT.md`, `CLAUDE.md`), editor state (`.claude/`, `.cursor/`, `.idea/`), and the source-tree `.mcp.json`.
-- **CHANGELOG is shipped, public, and short.** One or two sentences per bullet, answering "what changed for me?" — never the implementation. Ban: URLs of any environment (prod URLs live only in `bin/install.js#PROD_FLAVOR`; reference them as "the default endpoint" in prose), internal hostnames, internal env-var names (`KUBIT_FLAVOR` and similar), internal package/module names, internal release status (`in dogfood`, `not yet on ship allowlist`), refactor metrics (`N-item list consolidated`, `updated in lockstep`), internal vocabulary (`env-only tier`, ticket IDs). User-facing env vars and CLI invocations are fine when users need them to act on the change. Skip entries for changes invisible to users (refactors, infra moves, internal renames). Never rewrite released history; redact only the minimum.
+- **Prod endpoints are hardcoded.** The MCP URL lives in `bin/install.js#KUBIT_MCP_URL`; the OTel ingest endpoint appears only as a string literal inside framework adapter `.md` files under `skills/kubit-integrate/references/frameworks/`. Internal users who need to point at non-prod edit those literals locally.
+- **Allowlist, not denylist.** `package.json#files` is authoritative; `.npmignore` is belt-and-braces. Keep out: dev tooling (`test/`, `docs/`, `CLAUDE.md`), editor state (`.claude/`, `.cursor/`, `.idea/`), and any local `.mcp.json`.
+- **CHANGELOG is shipped, public, and short.** One or two sentences per bullet, answering "what changed for me?" — never the implementation. Ban: URLs of any environment (reference the production endpoint as "the default endpoint" in prose), internal hostnames, internal package/module names, internal release status (`in dogfood`, `not yet on ship allowlist`), refactor metrics (`N-item list consolidated`, `updated in lockstep`), internal vocabulary (`env-only tier`, ticket IDs). User-facing env vars and CLI invocations are fine when users need them to act on the change. Skip entries for changes invisible to users (refactors, infra moves, internal renames). Never rewrite released history; redact only the minimum.
 - **Audit before publish.** `npm pack && tar xzf *.tgz -C /tmp/kpack && grep -rniE 'otel-(dev|int|stg)\.kubit|agent-(int|stg)\.kubit|dogfood|in lockstep|env-only' /tmp/kpack/package/` — expect zero matches.
 
 ## Commit Convention

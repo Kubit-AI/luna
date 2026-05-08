@@ -8,44 +8,10 @@ const readline = require('readline');
 
 const PKG_ROOT = path.resolve(__dirname, '..');
 
-// Production endpoints — the only flavor baked into the published tarball,
-// and therefore the only URLs visible to anyone unpacking the npm package.
-// Non-prod endpoints live in scripts/non-prod-flavors.js as a map keyed
-// by flavor name. That file is NOT in package.json#files and so never
-// ships. From the source tree, KUBIT_FLAVOR selects a key (default 'int');
-// when `npx @kubit-ai/agent-plugin` runs from the tarball, the file is
-// absent and PROD_FLAVOR wins regardless of KUBIT_FLAVOR.
-// `KUBIT_OTEL_ENDPOINT=...` still overrides the resolved OTLP endpoint —
-// used for internal testing against custom hosts.
-const PROD_FLAVOR = {
-  otelEndpoint: 'https://otel.kubit.ai/v1/traces',
-  mcpUrl: 'https://agent.kubit.ai/mcp',
-};
-
-function resolveFlavor() {
-  const name = process.env.KUBIT_FLAVOR || 'int';
-  let flavors;
-  try {
-    // eslint-disable-next-line global-require
-    flavors = require('../scripts/non-prod-flavors.js');
-  } catch {
-    // No non-prod module — running from a published tarball. KUBIT_FLAVOR
-    // (if set) is ignored; only prod URLs are reachable in that environment.
-    return PROD_FLAVOR;
-  }
-  const flavor = flavors[name];
-  if (!flavor) {
-    fatal(`unknown KUBIT_FLAVOR: ${name} (expected one of: ${Object.keys(flavors).join(', ')})`);
-  }
-  if (flavor.otelEndpoint && flavor.mcpUrl) {
-    return flavor;
-  }
-  return PROD_FLAVOR;
-}
-
-const FLAVOR = resolveFlavor();
-const KUBIT_OTEL_ENDPOINT =
-  process.env.KUBIT_OTEL_ENDPOINT || FLAVOR.otelEndpoint;
+// Production MCP URL — baked into the published installer. The OTel
+// endpoint that the framework adapters reference is a string literal
+// inside their own `.md` files; install.js does not need to know it.
+const KUBIT_MCP_URL = 'https://agent.kubit.ai/mcp';
 
 // Explicit allowlist of agents that ship. Entries whose source file doesn't
 // exist under agents/ yet are silently skipped (see the existsSync guards in
@@ -237,8 +203,7 @@ function substituteKubitMarkers(body, ctx) {
   return body
     .replace(/\{\{KUBIT_RUNTIME\}\}/g, ctx.runtime)
     .replace(/\{\{KUBIT_CONFIG_DIR\}\}/g, ctx.configDir)
-    .replace(/\{\{KUBIT_SCOPE\}\}/g, ctx.scope)
-    .replace(/\{\{KUBIT_OTEL_ENDPOINT\}\}/g, ctx.otelEndpoint);
+    .replace(/\{\{KUBIT_SCOPE\}\}/g, ctx.scope);
 }
 
 // Recursively copy a file or directory from src to dest. Markdown files get
@@ -296,12 +261,12 @@ function writeFrontmatter(fm, body) {
 
 // ---------- MCP merge ----------
 
-// Merge our `.mcp.json` content into `targetMcpPath`, under key `kubit`.
-// Preserves other mcpServers entries. Idempotent.
+// Merge our `.mcp.json` content into `targetMcpPath`, under key `kubit-agent`.
+// Preserves other mcpServers entries. Idempotent. Removes the legacy `kubit`
+// key if present so users upgrading from older installs don't end up with
+// both registered.
 function mcpMerge(targetMcpPath) {
-  // Constructed from the resolved flavor — the repo's source-tree `.mcp.json`
-  // is not shipped, so we can't (and don't need to) read it at install time.
-  const ourEntry = { type: 'http', url: FLAVOR.mcpUrl };
+  const ourEntry = { type: 'http', url: KUBIT_MCP_URL };
 
   let existing = { mcpServers: {} };
   if (fs.existsSync(targetMcpPath)) {
@@ -311,7 +276,8 @@ function mcpMerge(targetMcpPath) {
       existing.mcpServers = {};
     }
   }
-  existing.mcpServers.kubit = ourEntry;
+  delete existing.mcpServers.kubit;
+  existing.mcpServers['kubit-agent'] = ourEntry;
   writeJson(targetMcpPath, existing);
 }
 
@@ -321,6 +287,7 @@ function mcpRemoveKubit(targetMcpPath) {
   try { existing = readJson(targetMcpPath); }
   catch { return; }
   if (!existing.mcpServers) return;
+  delete existing.mcpServers['kubit-agent'];
   delete existing.mcpServers.kubit;
   const remaining = Object.keys(existing.mcpServers).length;
   if (remaining === 0 && Object.keys(existing).length === 1) {
@@ -404,7 +371,6 @@ async function installClaude(args) {
     runtime: 'claude',
     configDir: configBase,
     scope: args.local ? 'local' : 'global',
-    otelEndpoint: KUBIT_OTEL_ENDPOINT,
   };
 
   for (const name of skillNames) {
@@ -460,7 +426,7 @@ function uninstallClaude(args) {
   removeAllKubitAgents(agentsDir);
   rmIfExists(metaDir);
   mcpRemoveKubit(mcpPath);
-  log(`[claude-code] removed ${removed} skill(s), agent, metadata, and mcpServers.kubit entry`);
+  log(`[claude-code] removed ${removed} skill(s), agent, metadata, and mcpServers.kubit-agent entry`);
 }
 
 // ---------- runtime: Cursor ----------
@@ -548,7 +514,6 @@ async function installCursor(args) {
     runtime: 'cursor',
     configDir: configBase,
     scope: args.local ? 'local' : 'global',
-    otelEndpoint: KUBIT_OTEL_ENDPOINT,
   };
 
   for (const name of skillNames) {
@@ -607,7 +572,7 @@ function uninstallCursor(args) {
   removeAllKubitAgents(agentsDir);
   rmIfExists(metaDir);
   mcpRemoveKubit(mcpPath);
-  log(`[cursor] removed ${removed} skill(s), subagent, metadata, and mcpServers.kubit entry`);
+  log(`[cursor] removed ${removed} skill(s), subagent, metadata, and mcpServers.kubit-agent entry`);
 }
 
 // ---------- main ----------
@@ -664,4 +629,4 @@ if (require.main === module) {
   main().catch((err) => fatal(err.stack || err.message || String(err)));
 }
 
-module.exports = { substituteKubitMarkers, copySkillSibling, PROD_FLAVOR, resolveFlavor };
+module.exports = { substituteKubitMarkers, copySkillSibling, KUBIT_MCP_URL };

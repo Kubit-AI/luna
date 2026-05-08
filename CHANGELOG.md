@@ -6,18 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
-## [0.1.2] - 2026-05-06
+## [0.1.2] - 2026-05-08
 
 ### Changed
 
 - `/kubit-integrate` now ships traces via the standard OpenTelemetry
   OTLP HTTP exporter instead of a Kubit-specific SDK — no extra
-  Kubit packages to install. The env vars the installer writes are
-  now `KUBIT_API_KEY` and `KUBIT_OTEL_ENDPOINT`.
-- The default Kubit OTLP traces endpoint has moved to a new
-  collector host. Re-run `/kubit-integrate` to write the updated
-  `KUBIT_OTEL_ENDPOINT` into your env file; existing installs keep
-  their previously configured value.
+  Kubit packages to install. The env var the installer writes is
+  now `KUBIT_API_KEY`.
 
 ## [0.1.1] - 2026-05-06
 

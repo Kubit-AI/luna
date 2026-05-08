@@ -290,7 +290,7 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      - Hold the pasted value in the same in-memory slot the minted key
        would occupy; step 6 is unchanged.
 
-6. **Write the API key and endpoint to the project's env config.**
+6. **Write the API key to the project's env config.**
    - Resolve repo root via `git rev-parse --show-toplevel`. If not a git
      checkout, fall back to the current working directory and warn once:
      *"Not inside a git checkout — generated files won't be tracked."*
@@ -311,22 +311,19 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      If exit code is 0, proceed to write. If non-zero (not ignored, or
      no git repo), skip the write and jump to the print-export fallback
      below; continue with instrumentation emission anyway.
-   - Upsert both `KUBIT_API_KEY=<minted-value>` and
-     `KUBIT_OTEL_ENDPOINT={{KUBIT_OTEL_ENDPOINT}}` into the chosen file.
-     For each key independently:
-     - If the file exists and already contains a line with that key,
+   - Upsert `KUBIT_API_KEY=<minted-value>` into the chosen file:
+     - If the file exists and already contains a `KUBIT_API_KEY=` line,
        replace that single line in place — do not reorder other keys,
        do not touch comments. Preserve the file's trailing newline.
-     - If the file exists but has no line for that key, append it as
-       its own line at the end of the file.
-     - If the file is missing, create it with both lines.
+     - If the file exists but has no `KUBIT_API_KEY=` line, append it
+       as its own line at the end of the file.
+     - If the file is missing, create it with that single line.
    - **Fallback (gitignore check failed):** print a single line
-     *"`<file>` not gitignored — printing export lines instead to avoid
-     committing the key:"* followed by both
-     `export KUBIT_API_KEY=<minted-value>` and
-     `export KUBIT_OTEL_ENDPOINT={{KUBIT_OTEL_ENDPOINT}}`. This is the
-     only place the key is allowed to leave the env-file write target.
-     Continue to step 7.
+     *"`<file>` not gitignored — printing export line instead to avoid
+     committing the key:"* followed by
+     `export KUBIT_API_KEY=<minted-value>`. This is the only place the
+     key is allowed to leave the env-file write target. Continue to
+     step 7.
 
 7. **Install the Kubit SDK.** The coding agent both edits the project's
    manifest and runs the install — not one or the other.
@@ -497,9 +494,9 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
      bootstrap file must also call `load_dotenv()` at the top —
      before reading any env var. Otherwise the bootstrap fires
      before `main()` runs `load_dotenv()`, so env-driven knobs
-     (`KUBIT_API_KEY`, `KUBIT_OTEL_ENDPOINT`, `BRAINTRUST_OTEL_COMPAT`,
-     …) are unset at bootstrap time and the user has to remember to
-     `export` everything in their shell instead. Verbatim addition to the top
+     (`KUBIT_API_KEY`, `BRAINTRUST_OTEL_COMPAT`, …) are unset at
+     bootstrap time and the user has to remember to `export`
+     everything in their shell instead. Verbatim addition to the top
      of the Python bootstrap (right under the header comment, before
      any `os.environ.get` reads):
      ```python
@@ -792,9 +789,9 @@ messages are in the sub-bullets.
    - Confirmation declined → exit 0.
    - Multi-sink prompt aborted → exit 0.
    - Adapter file missing *or* an unsubstituted `KUBIT_*` template
-     marker (e.g. a literal double-brace `KUBIT_OTEL_ENDPOINT`
-     reference) still present in the adapter body → fatal: *"Skill
-     install is corrupt: re-run `npx @kubit-ai/agent-plugin`."*
+     marker (e.g. a literal double-brace `KUBIT_CONFIG_DIR` reference)
+     still present in the adapter body → fatal: *"Skill install is
+     corrupt: re-run `npx @kubit-ai/agent-plugin`."*
    - Braintrust Prerequisites declined (step 8) → exit 0 with
      *"Skipped Braintrust instrumentation. Re-run after enabling
      OTel-compat mode for your project."*
