@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-11
+
+### Changed
+
+- `/kubit-integrate` now installs the Kubit OTel SDK
+  (`@kubit-ai/otel` on Node, `kubit-otel` on Python) and wires it
+  into your existing tracing setup. Built-in span filtering keeps
+  HTTP/DB auto-instrumentation noise out of Kubit by default. Set
+  `KUBIT_OTEL_ENDPOINT` to override the default ingest endpoint.
+  Requires OpenTelemetry JS SDK v2 on Node — `/kubit-integrate`
+  refuses to install when the project pins `^1.x`.
+
 ## [0.1.2] - 2026-05-08
 
 ### Changed

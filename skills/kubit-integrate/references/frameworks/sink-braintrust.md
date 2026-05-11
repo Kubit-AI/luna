@@ -36,9 +36,8 @@ that must be configured together:
      JS SDK.
 2. A `TracerProvider` must be registered with both the
    `BraintrustSpanProcessor` (preserving the existing Braintrust
-   destination) and a `BatchSpanProcessor` wrapping an
-   `OTLPSpanExporter` / `OTLPTraceExporter` aimed at the Kubit
-   ingest endpoint (the new parallel pipeline into Kubit).
+   destination) and `KubitSpanProcessor` from `@kubit-ai/otel` /
+   `kubit_otel` (the new parallel pipeline into Kubit).
 
 ### Prerequisites
 
@@ -66,17 +65,16 @@ explicit `y/N` opt-in before writing any file. Default is no.
 >      undesirable, configure `BraintrustSpanProcessor` with a
 >      `custom_filter` after the file is written.
 >    - *TypeScript (OTel JS SDK v2).* The bootstrap file constructs
->      its own `NodeSDK` with `BraintrustSpanProcessor` and a
->      Kubit-side `BatchSpanProcessor(OTLPTraceExporter(...))` in
->      `spanProcessors: [...]` — it cannot attach to an
->      already-running provider (v2 removed `addSpanProcessor`). If
->      your app already constructs its own `NodeSDK` /
->      `NodeTracerProvider`, the skill must merge both processors
->      into that existing `spanProcessors` array instead of writing
->      the standalone bootstrap, otherwise two providers compete for
->      the global registration. Configure `BraintrustSpanProcessor`
->      with a `customFilter` if you do not want non-Braintrust
->      spans flowing into Braintrust.
+>      its own `NodeSDK` with `BraintrustSpanProcessor` and Kubit's
+>      `KubitSpanProcessor` in `spanProcessors: [...]` — it cannot
+>      attach to an already-running provider (v2 removed
+>      `addSpanProcessor`). If your app already constructs its own
+>      `NodeSDK` / `NodeTracerProvider`, the skill must merge both
+>      processors into that existing `spanProcessors` array instead
+>      of writing the standalone bootstrap, otherwise two providers
+>      compete for the global registration. Configure
+>      `BraintrustSpanProcessor` with a `customFilter` if you do not
+>      want non-Braintrust spans flowing into Braintrust.
 >
 > 3. **How the bootstrap file opts you in.** The mechanism is
 >    language-specific:
@@ -140,22 +138,22 @@ if os.environ.get("BRAINTRUST_OTEL_COMPAT", "").lower() != "true":
     )
 else:
     from braintrust.otel import BraintrustSpanProcessor
+    from kubit_otel import KubitSpanProcessor
     from opentelemetry import trace
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
     provider = TracerProvider(resource=Resource.create({
         "service.name": "<service-name>",
         "service.version": "<service-version>",
         "deployment.environment": "dev",
     }))
-    # Kubit destination — parallel pipeline.
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
-        endpoint="https://otel.kubit.ai/v1/traces",
-        headers={"x-api-key": os.environ["KUBIT_API_KEY"]},
-    )))
+    # Kubit destination — parallel pipeline. KubitSpanProcessor is
+    # used as a plain processor; configure() would construct its own
+    # provider without BraintrustSpanProcessor and clobber this one.
+    provider.add_span_processor(KubitSpanProcessor(
+        api_key=os.environ["KUBIT_API_KEY"],
+    ))
     # Existing Braintrust destination. parent= is set explicitly because
     # BraintrustSpanProcessor reads only BRAINTRUST_PARENT (not the more
     # widely-used BRAINTRUST_PROJECT) and silently defaults to
@@ -178,8 +176,7 @@ The TS bootstrap shape branches on whether `langchain` is in
   + `BraintrustSpanProcessor` cover non-callback OTel sources: the
   user emits OTel spans directly, those flow through the global
   provider, and `BraintrustSpanProcessor` ships them to Braintrust
-  while the Kubit-side `BatchSpanProcessor(OTLPTraceExporter(...))`
-  ships them to Kubit.
+  while `KubitSpanProcessor` ships them to Kubit.
 - **With LangChain** — this snippet does NOT apply. On TS,
   `setupOtelCompat()` does not bridge `BraintrustCallbackHandler`
   into OTel (see `source-langchain.md` §6 caveat), so
@@ -200,9 +197,8 @@ The TS bootstrap shape branches on whether `langchain` is in
 // equivalent (BRAINTRUST_OTEL_COMPAT is Python-only and has no
 // effect here). See README from /kubit-integrate for caveats.
 import { setupOtelCompat, BraintrustSpanProcessor } from '@braintrust/otel';
+import { KubitSpanProcessor } from '@kubit-ai/otel';
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 
 // Must run before any `import 'braintrust'` anywhere in the process.
 // This file's import position at the entrypoint is what guarantees that.
@@ -218,10 +214,9 @@ const sdk = new NodeSDK({
       parent: `project_name:${process.env.BRAINTRUST_PROJECT ?? "default-otel-project"}`,
     }),
     // Kubit destination — parallel pipeline.
-    new BatchSpanProcessor(new OTLPTraceExporter({
-      url: "https://otel.kubit.ai/v1/traces",
-      headers: { "x-api-key": process.env.KUBIT_API_KEY! },
-    })),
+    new KubitSpanProcessor({
+      apiKey: process.env.KUBIT_API_KEY!,
+    }),
   ],
 });
 sdk.start();
@@ -242,7 +237,7 @@ Python:
 
 - A call to `BraintrustSpanProcessor(` (imported from
   `braintrust.otel`) registered on a `TracerProvider`. Add a
-  `provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=..., headers={"x-api-key": ...})))`
+  `provider.add_span_processor(KubitSpanProcessor(api_key=os.environ["KUBIT_API_KEY"]))`
   to the same provider, after the Braintrust processor, guarded by
   the same `BRAINTRUST_OTEL_COMPAT=="true"` check.
 
@@ -250,18 +245,19 @@ TypeScript:
 
 - A module that calls `setupOtelCompat()` from `@braintrust/otel` and
   constructs `new NodeSDK({ spanProcessors: [...] })`. Append
-  `new BatchSpanProcessor(new OTLPTraceExporter({ url: "https://otel.kubit.ai/v1/traces", headers: { "x-api-key": process.env.KUBIT_API_KEY! } }))`
-  to the same `spanProcessors` array. Do **not** wrap it in a
-  `BRAINTRUST_OTEL_COMPAT` env-var check — the env var has no
-  effect in the JS SDK; the existing `setupOtelCompat()` call is
-  itself the activation, and the user has already opted in by
-  reaching this site.
+  `new KubitSpanProcessor({ apiKey: process.env.KUBIT_API_KEY! })`
+  from `@kubit-ai/otel` to the same `spanProcessors` array — do
+  **not** call `configure()`, which would register a second
+  provider and clobber Braintrust's `NodeSDK`. Do **not** wrap the
+  processor in a `BRAINTRUST_OTEL_COMPAT` env-var check — the env
+  var has no effect in the JS SDK; the existing `setupOtelCompat()`
+  call is itself the activation, and the user has already opted in
+  by reaching this site.
 - **LangChain caveat.** When `langchain` is in `sources_detected`,
   this site is not the merge target for LangChain spans — Kubit's
   LangChain wiring lives in its own `NodeSDK` per
   `source-langchain.md` §3 Path B (TS), separate from any
-  Braintrust setup. Appending the Kubit
-  `BatchSpanProcessor(OTLPTraceExporter(...))` to the existing
+  Braintrust setup. Appending `KubitSpanProcessor` to the existing
   `setupOtelCompat()` site still covers non-callback OTel sources
   in the same process (e.g. Vercel AI), so it is a reasonable
   merge for those — but the LangChain coverage comes from a
@@ -293,21 +289,19 @@ LangChain-specific deps or wiring:
   - **Python.** `opentelemetry-instrumentation-langchain` plus a
     matching LLM-client instrumentor. LangChain emits OTel spans on
     the global `TracerProvider`; both `BraintrustSpanProcessor` and
-    Kubit's `BatchSpanProcessor(OTLPSpanExporter(...))` (both
-    registered in §3 above) receive them. Adds the OpenLLMetry
-    instrumentor ecosystem and requires pinning `wrapt<2`. Verified
-    end-to-end.
+    `KubitSpanProcessor` (both registered in §3 above) receive
+    them. Adds the OpenLLMetry instrumentor ecosystem and requires
+    pinning `wrapt<2`. Verified end-to-end.
   - **TypeScript (parallel pipelines).** Different shape — the §3
     TS bootstrap above does NOT apply on this path. Kubit gets a
     separate `NodeSDK` driven by
     `@arizeai/openinference-instrumentation-langchain` (NOT
-    Traceloop), with a `BatchSpanProcessor(OTLPTraceExporter(...))`
-    as its only processor; `setupOtelCompat()`,
-    `BraintrustSpanProcessor`, and `@braintrust/otel` are not used
-    on this path. Braintrust still works via
-    `BraintrustCallbackHandler` in user code (Path A wiring,
-    unchanged) — there is no OTel bridge between the two. Bootstrap
-    shape lives in `source-langchain.md` §3 Path B (TS).
+    Traceloop), with `KubitSpanProcessor` as its only processor;
+    `setupOtelCompat()`, `BraintrustSpanProcessor`, and
+    `@braintrust/otel` are not used on this path. Braintrust still
+    works via `BraintrustCallbackHandler` in user code (Path A
+    wiring, unchanged) — there is no OTel bridge between the two.
+    Bootstrap shape lives in `source-langchain.md` §3 Path B (TS).
 
 Walk the user through the tradeoff from `source-langchain.md` §3
 and have them choose **before** running SKILL.md step 7 — the
@@ -340,15 +334,16 @@ TypeScript:
 
 Required deps:
 
-- Python: `pip install "braintrust[otel]>=0.3.5" opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http`
+- Python: `pip install kubit-otel "braintrust[otel]>=0.3.5"`
   (the `braintrust[otel] >= 0.3.5` floor matches the
   peer-compatibility floor from §2 — distributed-tracing-safe for
   any consumer reading spans exported by this repo).
-- TypeScript: `npm install @braintrust/otel @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-proto @opentelemetry/sdk-trace-base`
+- TypeScript: `npm install @kubit-ai/otel @braintrust/otel @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node @opentelemetry/sdk-node`
   (the existing `braintrust` dep — the signal that triggered
   detection in §1 — is left in place; this install only adds the
-  Kubit-side extras). Match the project's existing OTel SDK major
-  when any of `@opentelemetry/*` is already declared.
+  Kubit-side extras). `@kubit-ai/otel` requires OTel JS at major
+  v2 — SKILL.md step 7's version gate refuses to install when the
+  project pins these peers to `^1.x`.
 - When `langchain` is also in `sources_detected` (see §3b), the
   dep list depends on the user's chosen path per
   `source-langchain.md` §3 / §4:
@@ -365,13 +360,13 @@ Required deps:
       `langchain_<provider>` imports), plus `wrapt<2`.
     - TypeScript (parallel pipelines):
       `@arizeai/openinference-instrumentation-langchain` plus
-      `@opentelemetry/sdk-node`, `@opentelemetry/exporter-trace-otlp-proto`,
-      and `@opentelemetry/sdk-trace-base` for the Kubit-side
-      `NodeSDK`. `@braintrust/langchain-js` (the Path A Braintrust
-      callback) stays in user code, unchanged. `@braintrust/otel`
-      and `setupOtelCompat()` are NOT used on this path. **Do NOT
-      install `@traceloop/instrumentation-langchain`** — it
-      discards `parentRunId` and produces disconnected spans (see
+      `@kubit-ai/otel` and `@opentelemetry/sdk-node` for the
+      Kubit-side `NodeSDK`. `@braintrust/langchain-js` (the Path A
+      Braintrust callback) stays in user code, unchanged.
+      `@braintrust/otel` and `setupOtelCompat()` are NOT used on
+      this path. **Do NOT install
+      `@traceloop/instrumentation-langchain`** — it discards
+      `parentRunId` and produces disconnected spans (see
       `source-langchain.md` §6).
   See `source-langchain.md` §3 / §4 for the bootstrap snippets, the
   wrapt failure mode (Python), and the full per-LLM-client
@@ -385,7 +380,7 @@ Python:
 KUBIT_API_KEY=<your-key> BRAINTRUST_OTEL_COMPAT=true python -c "
 {{KUBIT_IMPORT_STATEMENT}}
 from opentelemetry import trace
-trace.get_tracer('kubit-sdk-verify').start_span('hello-kubit').end()
+trace.get_tracer('kubit-sdk').start_span('hello-kubit').end()
 import time; time.sleep(2)
 "
 ```
@@ -396,7 +391,7 @@ TypeScript:
 KUBIT_API_KEY=<your-key> node -r ts-node/register -e "
 require('./kubit-instrumentation');
 const { trace } = require('@opentelemetry/api');
-trace.getTracer('kubit-sdk-verify').startSpan('hello-kubit').end();
+trace.getTracer('kubit-sdk').startSpan('hello-kubit').end();
 setTimeout(() => process.exit(0), 2000);
 "
 ```

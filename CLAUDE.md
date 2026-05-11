@@ -64,10 +64,10 @@ Kubit MCP server is wired via OAuth (browser sign-in on first use); skills can a
 
 End-user tarballs must not leak internal infrastructure. Rules:
 
-- **Prod endpoints are hardcoded.** The MCP URL lives in `bin/install.js#KUBIT_MCP_URL`; the OTel ingest endpoint appears only as a string literal inside framework adapter `.md` files under `skills/kubit-integrate/references/frameworks/`. Internal users who need to point at non-prod edit those literals locally.
+- **Prod endpoints are hardcoded.** The MCP URL lives in `bin/install.js#KUBIT_MCP_URL`. The OTel ingest endpoint is no longer present in this repo — it lives inside `@kubit-ai/otel` / `kubit-otel` as the default for `KUBIT_OTEL_ENDPOINT`. Internal users who need to point at non-prod set `KUBIT_OTEL_ENDPOINT` locally; the skill bodies do not reference any endpoint string literal.
 - **Allowlist, not denylist.** `package.json#files` is authoritative; `.npmignore` is belt-and-braces. Keep out: dev tooling (`test/`, `docs/`, `CLAUDE.md`), editor state (`.claude/`, `.cursor/`, `.idea/`), and any local `.mcp.json`.
 - **CHANGELOG is shipped, public, and short.** One or two sentences per bullet, answering "what changed for me?" — never the implementation. Ban: URLs of any environment (reference the production endpoint as "the default endpoint" in prose), internal hostnames, internal package/module names, internal release status (`in dogfood`, `not yet on ship allowlist`), refactor metrics (`N-item list consolidated`, `updated in lockstep`), internal vocabulary (`env-only tier`, ticket IDs). User-facing env vars and CLI invocations are fine when users need them to act on the change. Skip entries for changes invisible to users (refactors, infra moves, internal renames). Never rewrite released history; redact only the minimum.
-- **Audit before publish.** `npm pack && tar xzf *.tgz -C /tmp/kpack && grep -rniE 'otel-(dev|int|stg)\.kubit|agent-(int|stg)\.kubit|dogfood|in lockstep|env-only' /tmp/kpack/package/` — expect zero matches.
+- **Audit before publish.** `npm pack && tar xzf *.tgz -C /tmp/kpack && grep -rniE 'otel[-.](dev|int|stg|prod)?\.?kubit|kubit\.ai/v1/traces|agent-(int|stg)\.kubit|dogfood|in lockstep|env-only' /tmp/kpack/package/` — expect zero matches. The endpoint regex catches any `otel-dev.kubit.ai` / `otel.kubit.ai/v1/traces` literal that might slip back into a framework adapter `.md`.
 
 ## Commit Convention
 

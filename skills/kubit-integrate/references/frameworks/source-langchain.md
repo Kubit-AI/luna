@@ -110,9 +110,9 @@ TypeScript (`@langfuse/langchain` + `@langfuse/otel`):
 // LangChain → Langfuse → Kubit. @langfuse/langchain's
 // CallbackHandler emits spans through the same OTel TracerProvider
 // that @langfuse/otel's LangfuseSpanProcessor is registered on,
-// which is also where Kubit's BatchSpanProcessor(OTLPTraceExporter)
-// lives. Pass the handler to every chain.invoke / chain.stream call
-// you want traced.
+// which is also where Kubit's KubitSpanProcessor lives. Pass the
+// handler to every chain.invoke / chain.stream call you want
+// traced.
 import { CallbackHandler } from "@langfuse/langchain";
 
 const langfuseHandler = new CallbackHandler();
@@ -153,12 +153,12 @@ acceptable.
 callback with `opentelemetry-instrumentation-langchain` plus a
 matching LLM-client instrumentor. LangChain emits OTel spans on the
 global `TracerProvider`, so both `BraintrustSpanProcessor` and
-Kubit's `BatchSpanProcessor(OTLPSpanExporter(...))` (already
-registered per `sink-braintrust.md` §3) see the same spans. Coverage is process-wide once instrumented — no
-per-call `callbacks: [handler]` threading. Adds a new dep ecosystem
-(OpenLLMetry instrumentors) and requires pinning `wrapt<2` (see §4).
-Python is verified end-to-end; TS is not yet verified as of April
-2026.
+Kubit's `KubitSpanProcessor` (already registered per
+`sink-braintrust.md` §3) see the same spans. Coverage is
+process-wide once instrumented — no per-call `callbacks: [handler]`
+threading. Adds a new dep ecosystem (OpenLLMetry instrumentors) and
+requires pinning `wrapt<2` (see §4). Python is verified end-to-end;
+TS is not yet verified as of April 2026.
 
 Once the user picks, the skill emits exactly one of the snippets
 below — never both. Mixing them double-emits LangChain spans
@@ -218,7 +218,7 @@ error, no warning. The skill matches the instrumentor to the
 project's detected `langchain_<provider>` imports per §4.
 
 ```python
-# LangChain → OTel → BraintrustSpanProcessor + Kubit's BatchSpanProcessor(OTLPSpanExporter).
+# LangChain → OTel → BraintrustSpanProcessor + KubitSpanProcessor.
 # Both Braintrust and Kubit receive the same spans.
 # DO NOT also register BraintrustCallbackHandler — it would double-emit
 # (callback → Braintrust native pipeline AND OTel → BraintrustSpanProcessor).
@@ -262,8 +262,7 @@ spans (see §6 caveat).
 // on TS — see §6 caveat. This file owns Kubit's separate OTel pipeline;
 // the two run in parallel.
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { KubitSpanProcessor } from "@kubit-ai/otel";
 import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 
@@ -275,10 +274,9 @@ langchainInstrumentation.manuallyInstrument(CallbackManagerModule);
 
 const sdk = new NodeSDK({
   spanProcessors: [
-    new BatchSpanProcessor(new OTLPTraceExporter({
-      url: "https://otel.kubit.ai/v1/traces",
-      headers: { "x-api-key": process.env.KUBIT_API_KEY! },
-    })),
+    new KubitSpanProcessor({
+      apiKey: process.env.KUBIT_API_KEY!,
+    }),
   ],
   instrumentations: [langchainInstrumentation],
 });
@@ -354,19 +352,18 @@ What the user must do manually depends on the path:
 
 - **Braintrust Path B — TypeScript (parallel pipelines):**
   1. The skill installs `@arizeai/openinference-instrumentation-langchain`
-     plus `@opentelemetry/sdk-node`, `@opentelemetry/exporter-trace-otlp-proto`,
-     and `@opentelemetry/sdk-trace-base` per §4's TS dep list during
-     SKILL.md step 7. `@braintrust/langchain-js` stays in user code
-     unchanged.
+     plus `@kubit-ai/otel` and `@opentelemetry/sdk-node` per §4's TS
+     dep list during SKILL.md step 7. `@braintrust/langchain-js`
+     stays in user code unchanged.
   2. The bootstrap from §3 Path B TS owns its own `NodeSDK` with the
-     OpenInference `LangChainInstrumentation` and a
-     `BatchSpanProcessor(OTLPTraceExporter(...))` shipping spans to
-     Kubit. Importing the bootstrap at the entrypoint activates
-     instrumentation process-wide. **Do not** add
-     `BraintrustSpanProcessor` or `setupOtelCompat()` to this
-     bootstrap — Braintrust's callback handler in user code already
-     covers the Braintrust UI side; trying to bridge through OTel on
-     TS does not work (see §6 caveat).
+     OpenInference `LangChainInstrumentation` and a single
+     `KubitSpanProcessor` shipping spans to Kubit. Importing the
+     bootstrap at the entrypoint activates instrumentation
+     process-wide. **Do not** add `BraintrustSpanProcessor` or
+     `setupOtelCompat()` to this bootstrap — Braintrust's callback
+     handler in user code already covers the Braintrust UI side;
+     trying to bridge through OTel on TS does not work (see §6
+     caveat).
 
 Required deps (merged into SKILL.md step 7's dep list when
 `langchain` is in `sources_detected` alongside the chosen sink):
@@ -399,10 +396,8 @@ Required deps (merged into SKILL.md step 7's dep list when
       the pin does not conflict.
     - TypeScript (parallel-pipelines pattern, see §3 Path B TS):
       `@arizeai/openinference-instrumentation-langchain` (the
-      OpenInference LangChain instrumentor) plus
-      `@opentelemetry/sdk-node`,
-      `@opentelemetry/exporter-trace-otlp-proto`, and
-      `@opentelemetry/sdk-trace-base` for the Kubit-side `NodeSDK`.
+      OpenInference LangChain instrumentor) plus `@kubit-ai/otel`
+      and `@opentelemetry/sdk-node` for the Kubit-side `NodeSDK`.
       Path A's `@braintrust/langchain-js` stays in user code for
       the Braintrust callback path; it is not a Kubit-side install.
       **Do NOT install `@traceloop/instrumentation-langchain` on
