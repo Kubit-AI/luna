@@ -1,0 +1,156 @@
+# Manual release for @kubit-ai/agent-plugin → npm
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number, X.Y.Z only (e.g. 0.2.0). Do not include rc suffix.'
+        required: true
+        type: string
+      release_type:
+        description: 'public = stable X.Y.Z (dist-tag latest);  pre-release = X.Y.Z-rc.N (dist-tag next)'
+        required: true
+        type: choice
+        default: pre-release
+        options:
+          - pre-release
+          - public
+      rc_number:
+        description: 'RC number (used only when release_type = pre-release; ignored otherwise)'
+        required: false
+        type: string
+        default: '1'
+      dry_run:
+        description: 'Dry run: build + validate but do not publish, commit, or tag'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  # Force any Node-20-based JS actions (e.g. upload-artifact@v5) onto Node 24
+  # until they ship a Node-24 release. Becomes default June 2 2026.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      dist_tag: ${{ steps.validate.outputs.dist_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Resolve and validate version, pick npm dist-tag
+        id: validate
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          RC_NUMBER: ${{ inputs.rc_number }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERSION_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version: $VERSION_INPUT (must be X.Y.Z, with no rc/pre-release suffix)."
+            exit 1
+          fi
+          if [[ "$RELEASE_TYPE" == "pre-release" ]]; then
+            if [[ ! "$RC_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo "Invalid rc_number: $RC_NUMBER (must be a positive integer)."
+              exit 1
+            fi
+            FULL_VERSION="${VERSION_INPUT}-rc.${RC_NUMBER}"
+            DIST_TAG=next
+          else
+            FULL_VERSION="$VERSION_INPUT"
+            DIST_TAG=latest
+          fi
+
+          CUR_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version in package.json: $CUR_VERSION"
+          echo "Proposed version:                $FULL_VERSION (release_type=$RELEASE_TYPE, dist-tag=$DIST_TAG)"
+
+          if ! npx --yes semver --include-prerelease -r ">$CUR_VERSION" "$FULL_VERSION" >/dev/null 2>&1; then
+            echo "Refusing to release: proposed $FULL_VERSION is not greater than current $CUR_VERSION."
+            exit 1
+          fi
+          echo "OK: $FULL_VERSION > $CUR_VERSION"
+
+          echo "version=$FULL_VERSION" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag does not already exist
+        env:
+          VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+            exit 1
+          fi
+          echo "Tag $TAG is free."
+
+      - name: Bump version in package.json
+        env:
+          VERSION: ${{ steps.validate.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: npm publish dry-run (validation)
+        run: npm publish --access public --tag "${{ steps.validate.outputs.dist_tag }}" --dry-run
+
+      - name: Pack tarball for artifact upload
+        run: npm pack
+
+      - name: Upload build artifacts to run
+        uses: actions/upload-artifact@v5
+        with:
+          name: agent-plugin-${{ steps.validate.outputs.version }}
+          path: '*.tgz'
+          if-no-files-found: error
+
+      - name: Publish to npm
+        if: ${{ inputs.dry_run == false }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.LUNA_NPM_TOKEN }}
+        run: npm publish --access public --tag "${{ steps.validate.outputs.dist_tag }}"
+
+      - name: Commit, tag, and push
+        if: ${{ inputs.dry_run == false }}
+        env:
+          VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "Release v$VERSION"
+          git tag "v$VERSION"
+          git push origin HEAD:master
+          git push origin "v$VERSION"
+
+      - name: Dry-run summary
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "Dry run complete. Would have published @kubit-ai/agent-plugin ${{ steps.validate.outputs.version }}"
+          echo "to npm with dist-tag '${{ steps.validate.outputs.dist_tag }}'"
+          echo "and tagged v${{ steps.validate.outputs.version }}. No external side-effects performed."
