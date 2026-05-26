@@ -39,7 +39,7 @@ Each skill is `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `descripti
 
 When shipping a new skill, add it to `SHIPPED_SKILLS` and also update the skill table in `README.md` and the listing in `skills/help/SKILL.md` so they stay in sync.
 
-`bin/install.js` substitutes three template markers in every skill body at install time: `{{KUBIT_RUNTIME}}`, `{{KUBIT_CONFIG_DIR}}`, and `{{KUBIT_SCOPE}}`. The pass is a no-op on skills that don't reference these markers.
+`bin/install.js` substitutes four template markers in every skill body at install time: `{{KUBIT_RUNTIME}}`, `{{KUBIT_CONFIG_DIR}}`, `{{KUBIT_SCOPE}}`, and `{{KUBIT_MCP_AUTH}}`. The first three are runtime/scope values; `{{KUBIT_MCP_AUTH}}` expands to the shared MCP auth-failure block (`KUBIT_MCP_AUTH` constant in `bin/install.js`) that connect, inspect, and report all inline — edit it in one place since skills can't reference each other's bodies at runtime. The pass is a no-op on skills that don't reference these markers.
 
 ## Versioning
 

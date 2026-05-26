@@ -22,7 +22,7 @@ records from a report, use /kubit-inspect.
 
 ## Workflow
 
-1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch, redirect to /kubit-connect.
+1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch, redirect to /kubit-connect. On an auth/unauthenticated error from `init`, do not improvise — follow **MCP authentication** below.
 2. **Check for a cached dataset (wsctx-scoped).** Compute the cache key from the current MCP WSCTX token so concurrent conversations don't collide:
 
    ```bash
@@ -81,6 +81,10 @@ records from a report, use /kubit-inspect.
    3. Present findings conversationally.
 
 6. **Offer next steps.** Ask if the user wants to refine the report. If the report contains rows the user might want to investigate individually (traces, sessions, users, events), suggest `/kubit-inspect` as a drill-down. Do not suggest `/kubit-inspect` for aggregate reports like retention curves or funnel conversion rates where row-level drilling is not meaningful.
+
+## MCP authentication
+
+{{KUBIT_MCP_AUTH}}
 
 ## Rules
 - **Always render the report as `[<display>](<reportUrl>)`.** Whenever the MCP response contains `display` and `reportUrl` fields, present the report as a markdown link using `display` as the link text and `reportUrl` as the href. Never show the URL bare, and never present a report identifier without the link when both fields are available. Applies to every branch that surfaces a report — open, create, and each row of a multi-match list.

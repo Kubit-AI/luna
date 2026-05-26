@@ -72,26 +72,12 @@ established — capture the response and continue with the rest of the
 flow (Example 1 or 2; for `switch`, you may instead call `switch`
 directly and treat its auth error the same way).
 
-If the call fails with an auth/unauthenticated error:
-
-- **Claude Code:** ask the user to run `/mcp`, complete sign-in for
-  the Kubit MCP server, then re-run `/kubit-connect`.
-- **Cursor:** Cursor typically prompts the user inline to sign in to
-  the MCP server on first use. Ask the user to confirm that prompt,
-  then re-run `/kubit-connect`.
-- **Fallback (any environment, or if the above doesn't fire):** if
-  the MCP error response surfaces an auth URL, present it verbatim
-  and ask the user to open it in their browser to complete sign-in.
-  You may also `open <url>` via Bash to launch the browser — but
-  still ask the user to confirm completion before retrying.
-
-Do not retry `init` in a loop. Surface the instructions and exit 0;
-the user re-runs `/kubit-connect` when sign-in is done.
+{{KUBIT_MCP_AUTH}}
 
 ## Rules
 
 - Skip organization and workspace prompts if the user has only one of each
-- Do not proceed to other skills if MCP authentication is not established — route the user to `/mcp` (Claude Code) or the auth URL paste flow (Cursor / fallback) per *Pre-flight: MCP authentication*.
+- Do not proceed to other skills if MCP authentication is not established — open the surfaced auth URL for the user (falling back to `/mcp` on Claude Code or the Cursor inline prompt when no URL surfaces) per *Pre-flight: MCP authentication*.
 - Do not proceed to other skills if you don't have a `WSCTX` obtained from `init` or `switch` — call one of them first.
 - Do not persistently store the wsctx, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
 - Refresh wsctx after 1 hour idle (not a security timeout — just re-pins the workspace)
