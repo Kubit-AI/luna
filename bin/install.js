@@ -23,11 +23,15 @@ const KUBIT_MCP_AUTH = `If the call fails with an auth/unauthenticated error:
 - **Primary path (any environment) — the error surfaces an auth URL:**
   open it for the user immediately with the platform-appropriate
   command via Bash — \`open <url>\` (macOS), \`xdg-open <url>\` (Linux),
-  or \`start <url>\` (Windows) — and also print the URL verbatim so they
-  can open it manually if the browser doesn't launch. This URL
-  completes the same sign-in loop \`/mcp\` would start, so prefer
-  opening it over routing the user elsewhere. Then ask the user to
-  confirm they completed sign-in before retrying.
+  or \`start <url>\` (Windows) — and also render the URL as a markdown
+  link with a short display label, e.g.
+  \`[Open the Kubit sign-in page](<url>)\`, so they can click it if the
+  browser doesn't launch. Render it as a labeled link, **not** as a
+  bare URL: these OAuth URLs are long and a raw URL wraps across lines
+  in the terminal, which breaks cmd/ctrl+click. This URL completes the
+  same sign-in loop \`/mcp\` would start, so prefer opening it over
+  routing the user elsewhere. Then ask the user to confirm they
+  completed sign-in before retrying.
 
   The MCP client itself catches the browser's \`localhost\` callback and
   stores the token — there is no MCP tool that completes the OAuth
