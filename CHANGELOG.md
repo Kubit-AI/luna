@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-26
+
+### Changed
+
+- When MCP sign-in is required, the skills now open the sign-in URL in
+  your browser automatically, instead of asking you to click a link
+  that can wrap across terminal lines. The URL is still printed so you
+  can open it manually if your browser doesn't launch. This now also
+  fires when an auth prompt appears mid-task in `/kubit-inspect` and
+  `/kubit-report`, not just during `/kubit-connect`.
+
 ## [0.1.3] - 2026-05-11
 
 ### Changed

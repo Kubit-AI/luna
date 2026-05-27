@@ -115,12 +115,18 @@ since the installed version, and runs the installer after confirmation.
 
 - Don't require a workspace context — this skill must work before /kubit-connect is complete.
   However, the `help` mcp call does require a wsctx - call `init` first if you don't already have a wsctx in
-  the context and `help` needs to be called.
+  the context and `help` needs to be called. If that `init` (or the `help` call) returns an
+  auth/unauthenticated error, do not improvise — follow **MCP authentication** below. The skill
+  list above never needs auth; only the `help` MCP call does.
 - When calling `help`, always format `text` as `<user request>\n---\n<context>`
   per the "Filing a support request" section. The `---` separator is mandatory.
 - Never invent skills that do not exist
 - Keep the skill list accurate — update it whenever a new skill is added
 - One example block per skill in the summary view; full detail on specific request
+
+## MCP authentication
+
+{{KUBIT_MCP_AUTH}}
 
 ## Gotchas
 

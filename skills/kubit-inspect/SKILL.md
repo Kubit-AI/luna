@@ -23,7 +23,7 @@ aggregate analytics and trends, use /kubit-report.
 
 ## Workflow
 
-1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill.
+1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill. On an auth/unauthenticated error from `init`, do not improvise — follow **MCP authentication** below.
 2. **Check for a cached dataset (wsctx-scoped).** Compute the cache key from the current MCP WSCTX token so concurrent conversations don't collide:
 
    ```bash
@@ -86,6 +86,10 @@ aggregate analytics and trends, use /kubit-report.
    - Trace → "Want to see events for trace [trace id]?"
    - Multiple traces → suggest /kubit-report if the user wants to see the trend over time.
    - Errors / failures among the returned traces → After the entity-specific offer, add a one-line suggestion: "If you want to find the code change behind these failures, try /kubit-blame." Do not run it yourself.
+
+## MCP authentication
+
+{{KUBIT_MCP_AUTH}}
 
 ## Rules
 - Route by intent, not row count: analytical asks auto-spawn the analyst; lookup asks render the inline sample directly and offer the analyst as a trailing next step.

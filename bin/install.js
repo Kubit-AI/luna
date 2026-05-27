@@ -13,6 +13,42 @@ const PKG_ROOT = path.resolve(__dirname, '..');
 // inside their own `.md` files; install.js does not need to know it.
 const KUBIT_MCP_URL = 'https://agent.kubit.ai/mcp';
 
+// Shared MCP auth-failure handling, inlined via the {{KUBIT_MCP_AUTH}} marker
+// into every skill that calls the `init` tool (connect, inspect, report).
+// Skills can't read each other's bodies at runtime — the model only has the
+// current SKILL.md in context — so this guidance has to be inlined at install
+// time rather than referenced across files. Single source of truth lives here.
+const KUBIT_MCP_AUTH = `If the call fails with an auth/unauthenticated error:
+
+- **Primary path (any environment) — the error surfaces an auth URL:**
+  open it for the user immediately with the platform-appropriate
+  command via Bash — \`open <url>\` (macOS), \`xdg-open <url>\` (Linux),
+  or \`start <url>\` (Windows) — and also render the URL as a markdown
+  link with a short display label, e.g.
+  \`[Open the Kubit sign-in page](<url>)\`, so they can click it if the
+  browser doesn't launch. Render it as a labeled link, **not** as a
+  bare URL: these OAuth URLs are long and a raw URL wraps across lines
+  in the terminal, which breaks cmd/ctrl+click. This URL completes the
+  same sign-in loop \`/mcp\` would start, so prefer opening it over
+  routing the user elsewhere. Then ask the user to confirm they
+  completed sign-in before retrying.
+
+  The MCP client itself catches the browser's \`localhost\` callback and
+  stores the token — there is no MCP tool that completes the OAuth
+  code exchange, so **never ask the user to paste the callback /
+  redirect URL (or the \`code\`) back to you**; you cannot finish the
+  flow from it. If the callback page shows a connection error, the
+  client's localhost listener has expired — route the user to \`/mcp\`
+  (Claude Code) to run the managed sign-in, then retry.
+- **No URL surfaces — Claude Code:** ask the user to run \`/mcp\`,
+  complete sign-in for the Kubit MCP server, then re-run the command.
+- **No URL surfaces — Cursor:** Cursor typically prompts the user
+  inline to sign in to the MCP server on first use. Ask the user to
+  confirm that prompt, then re-run the command.
+
+Do not retry \`init\` in a loop. Surface the instructions and stop; the
+user re-runs the command once sign-in is done.`;
+
 // Explicit allowlist of agents that ship. Entries whose source file doesn't
 // exist under agents/ yet are silently skipped (see the existsSync guards in
 // installClaude/installCursor) — this lets the allowlist grow ahead of the
@@ -197,13 +233,15 @@ function assertSafeConfigDir(configDir) {
   }
 }
 
-// Substitute the update skill's template markers. Safe on skills that don't
-// use them — the replace passes are no-ops.
+// Substitute the skill template markers (runtime/config/scope for the update
+// skill, plus the shared MCP-auth block). Safe on skills that don't use them —
+// the replace passes are no-ops.
 function substituteKubitMarkers(body, ctx) {
   return body
     .replace(/\{\{KUBIT_RUNTIME\}\}/g, ctx.runtime)
     .replace(/\{\{KUBIT_CONFIG_DIR\}\}/g, ctx.configDir)
-    .replace(/\{\{KUBIT_SCOPE\}\}/g, ctx.scope);
+    .replace(/\{\{KUBIT_SCOPE\}\}/g, ctx.scope)
+    .replace(/\{\{KUBIT_MCP_AUTH\}\}/g, KUBIT_MCP_AUTH);
 }
 
 // Recursively copy a file or directory from src to dest. Markdown files get
