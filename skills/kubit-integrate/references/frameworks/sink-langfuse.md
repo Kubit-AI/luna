@@ -1,0 +1,316 @@
+# Langfuse Sink Adapter (instrument)
+
+Hybrid — Langfuse bundles its own instrumentation (`@observe`, native
+SDK wrappers) with the Langfuse backend. `provider_owner: user` for
+the OTel shape (`@langfuse/otel` is a `SpanProcessor` on a
+user-constructed provider); native shape posts directly to Langfuse's
+HTTP API and runs in parallel to Kubit's own provider.
+
+## 1. Dependency signals
+
+Grep these patterns in manifests and imports:
+
+- `langfuse` in `pyproject.toml` / `requirements.txt` (Python)
+- `langfuse`, `@langfuse/tracing`, `@langfuse/openai`, `@langfuse/core`, or
+  `@langfuse/otel` in `package.json` (JS/TS)
+- `from langfuse import` / `import langfuse` in Python
+- `from "langfuse"` / `from "@langfuse/tracing"` / `from "@langfuse/openai"`
+  in TS/JS
+- `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` env-var
+  references
+
+The TS/Node path splits into two shapes depending on which Langfuse
+packages are installed — the §3 standalone form branches on this:
+
+- **OTel shape** — `@langfuse/otel` is in `package.json` (alone or
+  alongside `@langfuse/tracing` / `@langfuse/core`). Langfuse emits
+  spans through a standard OTel `SpanProcessor` and can share a
+  `NodeTracerProvider` with Kubit.
+- **Native shape** — only `langfuse` / `@langfuse/tracing` /
+  `@langfuse/openai` / `@langfuse/core` are present. Langfuse posts
+  to its proprietary HTTP ingestion API; there is no OTel
+  `SpanProcessor` for the skill to wire into a shared provider.
+
+## 2. Minimum-change tier
+
+`bootstrap-file`
+
+Langfuse runs its own exporter (either its native SDK or its OTel bridge
+via `langfuse[otel]` / `@langfuse/otel`). On the merge path (§3a) Kubit
+joins the same `TracerProvider` as `LangfuseSpanProcessor` — no parallel
+pipeline, vendor-documented.
+
+On the standalone fallback (no wiring site found), behavior depends on
+the §1 TS shape:
+
+- **OTel shape** — the standalone bootstrap stands up one
+  `NodeTracerProvider` that carries both `LangfuseSpanProcessor` and
+  Kubit's `KubitSpanProcessor` in `spanProcessors: [...]`. Both
+  destinations share the same provider; Langfuse keeps shipping to
+  Langfuse and Kubit gets its own copy. **Do not call `configure()`
+  here** — `@kubit-ai/otel`'s `configure()` constructs a fresh
+  `NodeTracerProvider` without `LangfuseSpanProcessor` and would
+  clobber Langfuse's registration.
+- **Native shape** — the standalone bootstrap calls
+  `configure({ apiKey, serviceName })`. Langfuse's native SDK posts
+  to the Langfuse HTTP API directly (no OTel hop), so there is no
+  Langfuse provider to share with and Langfuse ingestion is
+  unaffected; Kubit runs in parallel on the provider `configure()`
+  registers.
+- **Python** — the standalone calls
+  `configure(api_key=..., service_name=...)`. Langfuse's Python SDK
+  uses its own pipeline the same way the TS native shape does.
+
+## 3. Bootstrap snippet
+
+Reference Kubit wiring — the *minimum* code that must end up in the
+program (imports + processor wiring, plus any assertions below).
+
+Langfuse's vendor-documented multi-exporter pattern is **same
+provider, two `SpanProcessor`s** — attach `LangfuseSpanProcessor` and
+a `KubitSpanProcessor` to the user's existing provider. See the
+[Langfuse existing-OTel FAQ](https://langfuse.com/faq/all/existing-otel-setup).
+Use the **merge form** whenever a wiring site is found per §3a. Use
+the **standalone form** only when no site exists — on the TS OTel
+shape it co-registers both processors on one provider; on the TS
+native shape and on Python it stands up a parallel Kubit provider
+(Langfuse keeps sending to Langfuse on its own pipeline, Kubit
+runs alongside).
+
+### Merge form — attach on the user's existing provider
+
+Python:
+
+```python
+# Kubit processor attached to the provider that already carries
+# LangfuseSpanProcessor. attach() detects the existing global
+# TracerProvider and adds KubitSpanProcessor to it.
+import os
+from kubit_otel import attach
+
+attach(api_key=os.environ["KUBIT_API_KEY"])
+```
+
+TypeScript (OTel JS SDK v2 requires processors at construction time
+— there is no post-hoc `addSpanProcessor`):
+
+```typescript
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { LangfuseSpanProcessor } from "@langfuse/otel";
+import { KubitSpanProcessor } from "@kubit-ai/otel";
+
+const sdk = new NodeSDK({
+  spanProcessors: [
+    new LangfuseSpanProcessor(),
+    new KubitSpanProcessor({
+      apiKey: process.env.KUBIT_API_KEY!,
+    }),
+  ],
+});
+sdk.start();
+```
+
+If the repo hand-builds a `NodeTracerProvider` rather than using
+`NodeSDK`, pass the same `spanProcessors` array to the
+`NodeTracerProvider` constructor — v2 removed `addSpanProcessor`, so
+both processors must be supplied at construction time.
+
+### Standalone form — `kubit_instrumentation.py` / `kubit-instrumentation.ts`
+
+Used when §3a finds no existing wiring site.
+
+Python — stands up a Kubit-owned provider. Langfuse's Python SDK
+continues on its own pipeline to the Langfuse HTTP API:
+
+```python
+# Generated by /kubit-integrate for langfuse on <YYYY-MM-DD>.
+# Requires the KUBIT_API_KEY env var.
+import os
+from kubit_otel import configure
+
+configure(
+    api_key=os.environ["KUBIT_API_KEY"],
+    service_name="<service-name>",
+    service_version="<service-version>",
+)
+```
+
+TypeScript — branches on the §1 shape.
+
+**OTel shape** (`@langfuse/otel` in `package.json`). Stands up one
+`NodeTracerProvider` with both processors so Langfuse and Kubit
+share the provider. **Do not call `configure()` here** —
+`@kubit-ai/otel`'s `configure()` would build its own
+`NodeTracerProvider` without `LangfuseSpanProcessor` and clobber
+this one when it registers as the global. `KubitSpanProcessor` goes
+into the same `spanProcessors: [...]` array as `LangfuseSpanProcessor`:
+
+```typescript
+// Generated by /kubit-integrate for langfuse on <YYYY-MM-DD>.
+// Requires the KUBIT_API_KEY env var plus
+// Langfuse's own (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_HOST).
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { LangfuseSpanProcessor } from "@langfuse/otel";
+import { KubitSpanProcessor } from "@kubit-ai/otel";
+
+const provider = new NodeTracerProvider({
+  resource: resourceFromAttributes({ "service.name": "<service-name>" }),
+  spanProcessors: [
+    new LangfuseSpanProcessor(),
+    new KubitSpanProcessor({
+      apiKey: process.env.KUBIT_API_KEY!,
+    }),
+  ],
+});
+provider.register();
+```
+
+**Native shape** (only `langfuse` / `@langfuse/tracing` /
+`@langfuse/openai` / `@langfuse/core`; no `@langfuse/otel`).
+Langfuse's native TS SDK posts directly to the Langfuse HTTP API
+and does not emit OTel spans — there is no `LangfuseSpanProcessor`
+to co-register, and Langfuse ingestion is unaffected by the Kubit
+wiring. Stands up a Kubit-owned provider in parallel:
+
+```typescript
+// Generated by /kubit-integrate for langfuse on <YYYY-MM-DD>.
+// Requires the KUBIT_API_KEY env var.
+// Parallel pipelines: Langfuse's native SDK posts to the Langfuse
+// HTTP API on its own; Kubit runs alongside on the OTel provider
+// configure() registers.
+// To share a provider instead, install `@langfuse/otel` and re-run
+// /kubit-integrate — the OTel shape co-registers both processors.
+import { configure } from "@kubit-ai/otel";
+
+configure({
+  apiKey: process.env.KUBIT_API_KEY!,
+  serviceName: "<service-name>",
+  serviceVersion: "<service-version>",
+});
+```
+
+## 3a. Integration-site signals
+
+Grep targets for an existing wiring site to merge Kubit into. If
+exactly one file in the repo matches, merge §3 wiring into that file;
+otherwise fall back to the standalone bootstrap file per SKILL.md
+step 9.
+
+Python:
+
+- A module that imports `langfuse.otel` / `LangfuseSpanProcessor` and
+  constructs a `TracerProvider`. Add a single
+  `attach(api_key=os.environ["KUBIT_API_KEY"])` call after the
+  Langfuse wiring — `attach()` adds `KubitSpanProcessor` to the
+  already-set global provider.
+
+TypeScript:
+
+- A module that imports from `@langfuse/otel` and constructs a
+  provider via `new NodeSDK({ spanProcessors: [...] })` or
+  `new NodeTracerProvider({ spanProcessors: [...] })`. Append
+  `new KubitSpanProcessor({ apiKey: process.env.KUBIT_API_KEY! })`
+  from `@kubit-ai/otel` to the same `spanProcessors` array — do
+  **not** call `configure()`, which would register a second
+  provider and clobber Langfuse's. v2 does not support adding
+  processors after construction.
+
+If multiple files match, ask the user which one the agent's traces
+flow through.
+
+## 3b. LangChain source hand-off
+
+Emitted only when `langchain` is in `sources_detected` alongside
+this sink. See `source-langchain.md` for the full detection and
+caveat story; this section is the Langfuse-specific wiring the
+skill surfaces on top of §3's span-processor merge.
+
+Langfuse v3's `CallbackHandler` emits LangChain spans through the
+global OTel `TracerProvider` — the same provider
+`LangfuseSpanProcessor` and `KubitSpanProcessor` are registered on
+(§3). Kubit therefore receives those spans as a sibling processor;
+no extra Kubit-side wiring is needed beyond installing the callback
+package and threading it into each chain call.
+
+Python (`langfuse >= 3` already ships `langfuse.langchain`):
+
+```python
+from langfuse.langchain import CallbackHandler
+
+langfuse_handler = CallbackHandler()
+
+response = chain.invoke(
+    {"input": "…"},
+    config={"callbacks": [langfuse_handler]},
+)
+```
+
+TypeScript (adds `@langfuse/langchain` on top of `@langfuse/otel`):
+
+```typescript
+import { CallbackHandler } from "@langfuse/langchain";
+
+const langfuseHandler = new CallbackHandler();
+
+await chain.invoke(
+  { input: "…" },
+  { callbacks: [langfuseHandler] },
+);
+```
+
+The v2 Python import `from langfuse.callback import CallbackHandler`
+and the v2 JS package `langfuse-langchain` both use Langfuse's
+non-OTel HTTP pipeline — Kubit cannot attach. If a v2 form is
+detected, the skill flags it in the confirmation and does not
+proceed until the user upgrades to v3.
+
+## 4. Wire-in instruction
+
+Python: add `{{KUBIT_IMPORT_STATEMENT}}` as the first import in
+`main.py` (or the app entrypoint that initializes the TracerProvider).
+
+TypeScript: add `import './kubit-instrumentation';` as the first import
+in `src/index.ts` (or your entrypoint).
+
+Required deps:
+
+- Python: `pip install kubit-otel`.
+- TypeScript: `npm install @kubit-ai/otel @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node`.
+  `@kubit-ai/otel` requires OTel JS SDK at major v2 — SKILL.md
+  step 7's version gate refuses to install when the project pins
+  these to `^1.x`. The OTel-shape standalone form additionally
+  imports from `@langfuse/otel` — it's already in `package.json`
+  per §1 (that's how this branch is chosen), so no extra install.
+  The native-shape standalone form needs no Langfuse-side extras.
+- When `langchain` is also in `sources_detected` (see §3b):
+  - Python: no extra (`langfuse >= 3` bundles `langfuse.langchain`).
+  - TypeScript: add `@langfuse/langchain`.
+
+## 5. Verification snippet
+
+Python:
+
+```bash
+KUBIT_API_KEY=<your-key> python -c "
+{{KUBIT_IMPORT_STATEMENT}}
+from opentelemetry import trace
+trace.get_tracer('kubit-sdk').start_span('hello-kubit').end()
+import time; time.sleep(2)
+"
+```
+
+TypeScript:
+
+```bash
+KUBIT_API_KEY=<your-key> npx tsx -e "
+    import('./src/kubit-instrumentation').then(async () => {
+      const { trace } = await import('@opentelemetry/api');
+      trace.getTracer('kubit-sdk').startSpan('hello-kubit').end();
+      setTimeout(() => process.exit(0), 2000);
+    });
+  "
+```
+
+If the bootstrap sits at the repo root rather than under `src/`, change the
+import path to `./kubit-instrumentation`.

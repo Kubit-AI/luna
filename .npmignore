@@ -1,0 +1,11 @@
+# npm ships the `files` whitelist in package.json; this is belt-and-suspenders.
+
+CLAUDE.md
+DEVELOPMENT.md
+.github/
+test/
+*.tgz
+.idea/
+.DS_Store
+.claude/
+.cursor/
