@@ -1,0 +1,8 @@
+# CI image — installs deps and runs luna's test suite (no linter configured).
+# Build IS the check. Used by qa/ci/luna.
+FROM public.ecr.aws/docker/library/node:20-alpine
+WORKDIR /kubit/luna
+COPY package.json ./
+RUN npm install
+COPY . ./
+RUN npm test
