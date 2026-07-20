@@ -63,6 +63,14 @@ Guidelines:
 
 ## Skills
 
+### /kubit
+Natural-language entry point. Classifies your question and routes it to the
+right kubit skill; for regression investigations it chains /kubit-report →
+/kubit-inspect → /kubit-blame, carrying the window and trace context between
+hops.
+    /kubit why did errors spike on Tuesday?
+    ask kubit what regressed after Friday's deploy
+---
 ### /kubit-connect
 Sets up your Kubit workspace context. Handles org and workspace selection and
 switching. Required before any other skill — provides the WSCTX

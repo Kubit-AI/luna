@@ -1,6 +1,6 @@
 ---
 name: kubit-integrate
-description: Use this skill when the user wants to start shipping their existing LLM tracing into Kubit. Detects on two axes — tracing **sinks** (Langfuse, Braintrust) and tracing **sources** (Vercel AI SDK, OpenTelemetry GenAI, LangChain) — then creates a fresh Kubit workspace, mints an ingestion key, writes it to the repo's env config (`.env.local` or `.env`), installs the Kubit OTel SDK (`@kubit-ai/otel` on Node, `kubit-otel` on Python), and wires `KubitSpanProcessor` into the user's existing provider when a sink is present, or `configure()`s the SDK as the sole sink for the detected source(s) when no sink is present.
+description: Use this skill when the user wants to start shipping their existing LLM tracing into Kubit — wiring an app that uses a tracing sink (Langfuse, Braintrust) or source (Vercel AI SDK, OpenTelemetry GenAI, LangChain), creating a Kubit workspace, or minting an ingestion key. To view data after integration use /kubit-report or /kubit-inspect; to switch workspaces use /kubit-connect.
 ---
 
 # /kubit-integrate

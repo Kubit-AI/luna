@@ -30,7 +30,7 @@ luna/
 
 Each skill is `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`) defining the interactive process.
 
-`bin/install.js` has a `SHIPPED_SKILLS` allowlist that controls which source folders under `skills/` actually get installed. Source dirs are kubit-prefixed and the prefix is the source of truth — install.js copies them as-is (no rename). Currently ships: `kubit-blame`, `kubit-connect`, `kubit-help`, `kubit-inspect`, `kubit-integrate`, `kubit-report`, `kubit-update`.
+`bin/install.js` has a `SHIPPED_SKILLS` allowlist that controls which source folders under `skills/` actually get installed. Source dirs are kubit-prefixed and the prefix is the source of truth — install.js copies them as-is (no rename). Currently ships: `kubit`, `kubit-blame`, `kubit-connect`, `kubit-help`, `kubit-inspect`, `kubit-integrate`, `kubit-report`, `kubit-update`.
 
 When shipping a new skill, add it to `SHIPPED_SKILLS` and also update the skill table in `README.md` and the listing in `skills/help/SKILL.md` so they stay in sync.
 
@@ -42,7 +42,7 @@ When shipping a new skill, add it to `SHIPPED_SKILLS` and also update the skill 
 
 ## Slash-command spelling
 
-Skills are installed at `~/.claude/skills/kubit-<name>/` (or `~/.cursor/skills/kubit-<name>/`) and invoked by the dash-joined directory name: `/kubit-connect`, `/kubit-inspect`, …. Source-tree skill bodies use the same dash form so what you read matches what users type.
+Skills are installed at `~/.claude/skills/kubit-<name>/` (or `~/.cursor/skills/kubit-<name>/`) and invoked by the dash-joined directory name: `/kubit-connect`, `/kubit-inspect`, …. The entry-point skill is the exception: its directory is plain `kubit`, invoked as `/kubit`. Source-tree skill bodies use the same dash form so what you read matches what users type.
 
 ## Cursor caveats
 
