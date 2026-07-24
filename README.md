@@ -6,6 +6,7 @@ An agent plugin that adds `/kubit-*` skills to Claude Code and Cursor for workin
 
 | Command            | Purpose                                                          |
 | :----------------- | :--------------------------------------------------------------- |
+| `/kubit`           | Ask Kubit anything — routes your question to the right kubit skill, chaining report → inspect → blame for investigations |
 | `/kubit-blame`     | Find the code change behind a trace regression (downstream of report / inspect) |
 | `/kubit-connect`   | Authenticate and select the current org / workspace              |
 | `/kubit-help`      | List all kubit skills and how to use them                        |

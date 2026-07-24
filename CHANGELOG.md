@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- `/kubit` — ask Kubit anything in natural language. Routes your
+  question to the right `/kubit-*` skill, and chains `/kubit-report` →
+  `/kubit-inspect` → `/kubit-blame` to find what caused a regression.
+
 ## [0.1.4] - 2026-05-26
 
 ### Changed

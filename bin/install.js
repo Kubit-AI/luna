@@ -58,7 +58,7 @@ const SHIPPED_AGENTS = ['kubit-analyst', 'kubit-blame-mapper', 'kubit-blame-corr
 // Explicit allowlist of skills that ship. Source folders under `skills/` not
 // listed here stay in the repo but are not installed. Keep this in sync with
 // README.md, skills/help/SKILL.md, CHANGELOG.md, and CLAUDE.md.
-const SHIPPED_SKILLS = ['kubit-blame', 'kubit-connect', 'kubit-help', 'kubit-inspect', 'kubit-report', 'kubit-update', 'kubit-integrate'];
+const SHIPPED_SKILLS = ['kubit-blame', 'kubit-connect', 'kubit-help', 'kubit-inspect', 'kubit-report', 'kubit-update', 'kubit-integrate', 'kubit'];
 
 const HELP = `kubit-agent-plugin — install the Kubit agent plugin into Claude Code and/or Cursor
 
@@ -168,14 +168,15 @@ function rmIfExists(p) {
   if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
 }
 
-// Reserve the kubit-* namespace: remove any skill dirs or agent files left
-// over from previous versions that are no longer in the allowlist. Handles
-// renames (kubit-instrument -> kubit-integrate) and removals automatically.
+// Reserve the kubit skill namespace (`kubit` and `kubit-*`): remove any skill
+// dirs or agent files left over from previous versions that are no longer in
+// the allowlist. Handles renames (kubit-instrument -> kubit-integrate) and
+// removals automatically.
 function pruneStaleInstalls(skillsDir, agentsDir, shippedSkills, shippedAgents) {
   const keepSkills = new Set(shippedSkills);
   if (fs.existsSync(skillsDir)) {
     for (const entry of fs.readdirSync(skillsDir)) {
-      if (entry.startsWith('kubit-') && !keepSkills.has(entry)) {
+      if ((entry === 'kubit' || entry.startsWith('kubit-')) && !keepSkills.has(entry)) {
         rmIfExists(path.join(skillsDir, entry));
         log(`  pruned stale skill: ${entry}`);
       }
@@ -455,7 +456,7 @@ function uninstallClaude(args) {
   let removed = 0;
   if (fs.existsSync(skillsDir)) {
     for (const f of fs.readdirSync(skillsDir)) {
-      if (f.startsWith('kubit-')) {
+      if (f === 'kubit' || f.startsWith('kubit-')) {
         rmIfExists(path.join(skillsDir, f));
         removed++;
       }
@@ -601,7 +602,7 @@ function uninstallCursor(args) {
   let removed = 0;
   if (fs.existsSync(skillsDir)) {
     for (const f of fs.readdirSync(skillsDir)) {
-      if (f.startsWith('kubit-')) {
+      if (f === 'kubit' || f.startsWith('kubit-')) {
         rmIfExists(path.join(skillsDir, f));
         removed++;
       }
