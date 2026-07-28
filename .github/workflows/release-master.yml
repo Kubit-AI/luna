@@ -45,11 +45,21 @@ jobs:
     outputs:
       dist_tag: ${{ steps.validate.outputs.dist_tag }}
     steps:
+      # The default GITHUB_TOKEN cannot push to master — branch protection there
+      # requires a pull request. luna-release-bot is in the bypass list, so the
+      # release commit and tag go through an installation token instead.
+      - name: Mint release-bot token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up Node
         uses: actions/setup-node@v5
@@ -140,8 +150,8 @@ jobs:
         env:
           VERSION: ${{ steps.validate.outputs.version }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name  "luna-release-bot[bot]"
+          git config user.email "310250525+luna-release-bot[bot]@users.noreply.github.com"
           git add package.json
           git commit -m "Release v$VERSION"
           git tag "v$VERSION"
