@@ -142,10 +142,17 @@ Not applicable — see §1. Route Python services through `otel-genai`.
 // the AI SDK does not emit spans without that flag.
 import { configure } from "@kubit-ai/otel";
 
-configure({
+const provider = configure({
   apiKey: process.env.KUBIT_API_KEY!,
   serviceName: "<service-name>",
   serviceVersion: "<service-version>",
+});
+
+// KubitSpanProcessor batches on a 5s timer, so a short-lived process exits with
+// spans still queued — no error, exit 0, nothing arrives. `beforeExit` fires
+// when the loop drains, which is that case; shutdown() flushes what is pending.
+process.once("beforeExit", () => {
+  void provider.shutdown();
 });
 ```
 
@@ -172,6 +179,13 @@ const sdk = new NodeSDK({
   ],
 });
 sdk.start();
+
+// KubitSpanProcessor batches on a 5s timer, so a short-lived process exits with
+// spans still queued — no error, exit 0, nothing arrives. `beforeExit` fires
+// when the loop drains, which is that case; shutdown() flushes what is pending.
+process.once("beforeExit", () => {
+  void sdk.shutdown();
+});
 ```
 
 ## 3a. Integration-site signals
@@ -266,7 +280,10 @@ KUBIT_API_KEY=<your-key> node -r ts-node/register -e "
 require('./kubit-instrumentation');
 const { trace } = require('@opentelemetry/api');
 trace.getTracer('kubit-sdk').startSpan('hello-kubit').end();
-setTimeout(() => process.exit(0), 2000);
+// No process.exit and no timer. The processor batches on a 5s timer, so an
+// exit-after-2s check reported success whether the install worked or not —
+// it always beat the first flush. Ending naturally lets the bootstrap's
+// beforeExit hook flush, so this now fails when the wiring is wrong.
 "
 ```
 

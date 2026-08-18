@@ -273,6 +273,9 @@ const langchainInstrumentation = new LangChainInstrumentation();
 langchainInstrumentation.manuallyInstrument(CallbackManagerModule);
 
 const sdk = new NodeSDK({
+  // Without a serviceName every span ships as `unknown_service`, and Kubit
+  // renders those against PRD — INT traffic then looks like production data.
+  serviceName: "<service-name>",
   spanProcessors: [
     new KubitSpanProcessor({
       apiKey: process.env.KUBIT_API_KEY!,
@@ -281,7 +284,31 @@ const sdk = new NodeSDK({
   instrumentations: [langchainInstrumentation],
 });
 sdk.start();
+
+// KubitSpanProcessor batches on a 5s timer. A script, a job or a serverless
+// invocation that finishes sooner exits with spans still queued — no error,
+// exit 0, nothing arrives. `beforeExit` fires once the event loop drains,
+// which is exactly that case; shutdown() flushes what is pending.
+process.once("beforeExit", () => {
+  void sdk.shutdown();
+});
 ```
+
+**The workspace needs the `default-openinference` extraction template.**
+`@arizeai/openinference-instrumentation-langchain` emits OpenInference
+attributes (`llm.model_name`, `llm.token_count.*`, `input.value`,
+`output.value`). A new `pipelineType: AGENT` workspace is provisioned with
+`default-otel`, which maps only the OTel GenAI `gen_ai.*` names and **zero**
+`llm.*` — so the spans arrive and store fine, but land untyped with every LLM
+column (model, tokens, input/output, cost) blank. The raw attributes are
+visible under Event: Properties, which is the tell that it is a mapping gap
+rather than a lost-span problem.
+
+`workspace_create` takes no template argument, so switch it after creation on
+the workspace's Extraction page (`default-openinference`, which carries the
+`llm.*` mappings). Pre-existing workspaces migrated from v3 keep
+`default-agent`, which also maps `llm.*` — that is why an older workspace for
+the same app shows the columns and a freshly created one does not.
 
 Extra dep (on top of what the Braintrust sink adapter already pulls
 in): see §4 — the dep list branches on the chosen path.
