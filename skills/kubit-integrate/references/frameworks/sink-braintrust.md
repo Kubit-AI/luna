@@ -221,9 +221,7 @@ const sdk = new NodeSDK({
 });
 sdk.start();
 
-// KubitSpanProcessor batches on a 5s timer, so a short-lived process exits with
-// spans still queued — no error, exit 0, nothing arrives. `beforeExit` fires
-// when the loop drains, which is that case; shutdown() flushes what is pending.
+// Spans batch on a 5s timer; without this a short-lived process exits with them queued.
 process.once("beforeExit", () => {
   void sdk.shutdown();
 });
@@ -388,7 +386,7 @@ KUBIT_API_KEY=<your-key> BRAINTRUST_OTEL_COMPAT=true python -c "
 {{KUBIT_IMPORT_STATEMENT}}
 from opentelemetry import trace
 trace.get_tracer('kubit-sdk').start_span('hello-kubit').end()
-# No sleep: the SDK registers an atexit flush, so a clean exit ships the span.
+# No sleep: the SDK flushes at exit.
 "
 ```
 
@@ -399,9 +397,6 @@ KUBIT_API_KEY=<your-key> node -r ts-node/register -e "
 require('./kubit-instrumentation');
 const { trace } = require('@opentelemetry/api');
 trace.getTracer('kubit-sdk').startSpan('hello-kubit').end();
-// No process.exit and no timer. The processor batches on a 5s timer, so an
-// exit-after-2s check reported success whether the install worked or not —
-// it always beat the first flush. Ending naturally lets the bootstrap's
-// beforeExit hook flush, so this now fails when the wiring is wrong.
+// No timer: exiting before the 5s flush made this pass even when broken.
 "
 ```
