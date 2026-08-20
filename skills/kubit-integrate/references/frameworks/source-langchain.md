@@ -273,6 +273,8 @@ const langchainInstrumentation = new LangChainInstrumentation();
 langchainInstrumentation.manuallyInstrument(CallbackManagerModule);
 
 const sdk = new NodeSDK({
+  // Without this, spans ship as `unknown_service` and Kubit renders them as PRD.
+  serviceName: "<service-name>",
   spanProcessors: [
     new KubitSpanProcessor({
       apiKey: process.env.KUBIT_API_KEY!,
@@ -281,7 +283,18 @@ const sdk = new NodeSDK({
   instrumentations: [langchainInstrumentation],
 });
 sdk.start();
+
+// Spans batch on a 5s timer; without this a short-lived process exits with them queued.
+process.once("beforeExit", () => {
+  void sdk.shutdown();
+});
 ```
+
+**Set the workspace's extraction template to `default-openinference`.** This
+instrumentor emits OpenInference `llm.*` attributes; a new AGENT workspace gets
+`default-otel`, which maps `gen_ai.*` and none of them — spans arrive but land
+untyped with every LLM column blank. `workspace_create` takes no template
+argument, so change it on the workspace's Extraction page after creation.
 
 Extra dep (on top of what the Braintrust sink adapter already pulls
 in): see §4 — the dep list branches on the chosen path.

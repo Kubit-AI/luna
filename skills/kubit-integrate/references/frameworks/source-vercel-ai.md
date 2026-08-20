@@ -142,10 +142,15 @@ Not applicable — see §1. Route Python services through `otel-genai`.
 // the AI SDK does not emit spans without that flag.
 import { configure } from "@kubit-ai/otel";
 
-configure({
+const provider = configure({
   apiKey: process.env.KUBIT_API_KEY!,
   serviceName: "<service-name>",
   serviceVersion: "<service-version>",
+});
+
+// Spans batch on a 5s timer; without this a short-lived process exits with them queued.
+process.once("beforeExit", () => {
+  void provider.shutdown();
 });
 ```
 
@@ -172,6 +177,11 @@ const sdk = new NodeSDK({
   ],
 });
 sdk.start();
+
+// Spans batch on a 5s timer; without this a short-lived process exits with them queued.
+process.once("beforeExit", () => {
+  void sdk.shutdown();
+});
 ```
 
 ## 3a. Integration-site signals
@@ -266,7 +276,7 @@ KUBIT_API_KEY=<your-key> node -r ts-node/register -e "
 require('./kubit-instrumentation');
 const { trace } = require('@opentelemetry/api');
 trace.getTracer('kubit-sdk').startSpan('hello-kubit').end();
-setTimeout(() => process.exit(0), 2000);
+// No timer: exiting before the 5s flush made this pass even when broken.
 "
 ```
 
