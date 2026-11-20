@@ -64,12 +64,13 @@ Guidelines:
 
 ### Confirm before filing
 
-Show the user the request type, whether it is urgent (BUG only), and the
-exact `text` you will send. Then use `AskUserQuestion` with three options:
-"Yes, send it", "Edit it first" and "Cancel". Call `help` only after "Yes,
-send it". On "Edit it first", ask what to change, show the new text and
-confirm again. Where `AskUserQuestion` is not available, ask the same
-question in plain text and wait for a clear yes.
+Call `help` without `draftId` first: it files nothing and returns the exact
+ticket. Show that ticket as the result says, apart from your own words, and
+ask in one `AskUserQuestion`: "Yes, send it", "Edit it first" or "No". On
+"Yes, send it", call `help` again with the same arguments and the `draftId`.
+On "Edit it first", ask what to change and preview the new text. Where
+`AskUserQuestion` is not available, ask the same question in plain text and
+wait for a clear yes.
 
 ## Skills
 
@@ -138,7 +139,7 @@ since the installed version, and runs the installer after confirmation.
   list above never needs auth; only the `help` MCP call does.
 - When calling `help`, always format `text` as `<user request>\n---\n<context>`
   per the "Filing a support request" section. The `---` separator is mandatory.
-- Never call `help` without the user's yes from "Confirm before filing".
+- Never call `help` with a `draftId` without the user's yes from "Confirm before filing".
 - Never invent skills that do not exist
 - Keep the skill list accurate — update it whenever a new skill is added
 - One example block per skill in the summary view; full detail on specific request
