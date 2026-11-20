@@ -22,7 +22,8 @@ or feature requests, using the `help` MCP call.
    the best match and suggest it with an example.
 4. Consider using the `help` MCP call if the request fits in its use cases.
    When you do, format the `text` argument as described in "Filing a support
-   request" below.
+   request" below, and confirm with the user first as described in
+   "Confirm before filing".
 
 ## Filing a support request
 
@@ -60,6 +61,15 @@ Guidelines:
   summary.
 - Keep the context concise — a short labeled list is better than a wall of
   prose.
+
+### Confirm before filing
+
+Show the user the request type, whether it is urgent (BUG only), and the
+exact `text` you will send. Then use `AskUserQuestion` with three options:
+"Yes, send it", "Edit it first" and "Cancel". Call `help` only after "Yes,
+send it". On "Edit it first", ask what to change, show the new text and
+confirm again. Where `AskUserQuestion` is not available, ask the same
+question in plain text and wait for a clear yes.
 
 ## Skills
 
@@ -128,6 +138,7 @@ since the installed version, and runs the installer after confirmation.
   list above never needs auth; only the `help` MCP call does.
 - When calling `help`, always format `text` as `<user request>\n---\n<context>`
   per the "Filing a support request" section. The `---` separator is mandatory.
+- Never call `help` without the user's yes from "Confirm before filing".
 - Never invent skills that do not exist
 - Keep the skill list accurate — update it whenever a new skill is added
 - One example block per skill in the summary view; full detail on specific request
