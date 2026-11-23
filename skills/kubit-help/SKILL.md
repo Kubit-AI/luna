@@ -62,7 +62,7 @@ Guidelines:
 ### Confirm before filing
 
 Call `help` without `draftId` first: it files nothing and returns the exact
-ticket. Show that ticket as the result says, apart from your own words, and
+ticket. Show that ticket as the result says, kept separate from your own text, and
 ask in one `AskUserQuestion`: "Yes, send it", "Edit it first" or "No". On
 "Yes, send it", call `help` again with the same arguments and the `draftId`.
 On "Edit it first", ask what to change and preview the new text. Where
