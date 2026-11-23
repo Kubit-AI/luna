@@ -15,8 +15,8 @@ Two distinct things must be in place for Kubit MCP calls to work, and
 this skill only owns the second:
 
 1. **MCP authentication** — a one-time browser OAuth sign-in against
-   the Kubit Agent MCP server, through the server's `authenticate` tool
-   (with Claude Code's `/mcp` as the fallback). Until this completes,
+   the Kubit Agent MCP server, through Claude Code's `authenticate` tool
+   for the Kubit server (with `/mcp` as the fallback). Until this completes,
    the Kubit tools are not available, or fail with an auth error. See *Pre-flight:
    MCP authentication* below.
 2. **Workspace context (`wsctx`)** — the `WSCTX` value returned by
@@ -81,7 +81,7 @@ auth error the same way).
 
 - When a Kubit result ends with "Lumos context changed since it was loaded", call `switch` once with the same org and workspace to reload it, and use the wsctx it returns from then on. Do not call it again for the same notice.
 - Skip organization and workspace prompts if the user has only one of each
-- Do not proceed to other skills if MCP authentication is not established — sign in with the server's `authenticate` tool (falling back to `/mcp` on Claude Code, or Cursor Settings → MCP) per *Pre-flight: MCP authentication*.
+- Do not proceed to other skills if MCP authentication is not established — sign in with Claude Code's `authenticate` tool for the Kubit server (falling back to `/mcp` on Claude Code, or Cursor Settings → MCP) per *Pre-flight: MCP authentication*.
 - Do not proceed to other skills if you don't have a `WSCTX` obtained from `init` or `switch` — call one of them first.
 - Do not persistently store the wsctx, keep it in context window and if it is lost - request a new one with `switch` for the workspace already in use (or `init` when none is known): `init` may land on a different workspace, since it reads preferences shared across clients.
 - Refresh wsctx after 1 hour idle (not a security timeout — just re-pins the workspace)

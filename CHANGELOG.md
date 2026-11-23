@@ -22,7 +22,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A `/kubit-help` bug report or question lists your project's language,
   framework and Kubit-related libraries, read from its manifest.
 - Signing in to Kubit works after an expired session and on remote
-  machines, where you paste the sign-in page's address back.
+  machines, where you paste back the address the sign-in lands on.
 - `/kubit-integrate` creates a new workspace with one API key, and says
   how to recover if creating it only partly succeeds.
 - Help with a problem now points to `/kubit-help` instead of a Slack

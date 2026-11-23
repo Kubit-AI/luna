@@ -243,13 +243,18 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        already in the tool result. `workspace_action = created`,
        `key_source = minted`. Skip step 5: do not call `workspace_mint_key`,
        and do not ask for the key source.
-     - A response starting `Workspace created (` (the warehouse init
-       or the key mint failed) leaves a workspace with
-       no key, and no wsctx for it. Surface the message and exit 0 with
-       *"Workspace <id> was created without an API key — run
-       `/kubit-connect switch` to select it, then re-run
-       `/kubit-integrate` and pick it to mint a key."* No write, no
-       instrumentation.
+     - A response starting `Workspace created (` leaves a workspace with
+       no key, and no wsctx for it. Surface the message, then:
+       - `… but warehouse init failed` → the workspace has no warehouse,
+         and no tool can initialize one: do not mint a key or instrument
+         against it. Exit 0 with *"Workspace <id> was created, but its
+         warehouse could not be set up."* and offer the BUG ticket of
+         step 4, naming the workspace id.
+       - `… but API key minting failed` or `… returned no entity` → exit 0
+         with *"Workspace <id> was created without an API key — run
+         `/kubit-connect switch` to select it, then re-run
+         `/kubit-integrate` and pick it to mint a key."*
+       No write, no instrumentation.
 
 5. **Obtain the ingestion key** (`used` and `switched` only; `created`
    already has its key from `workspace_create`). Two branches: mint a fresh key against

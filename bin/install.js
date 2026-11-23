@@ -14,7 +14,7 @@ const PKG_ROOT = path.resolve(__dirname, '..');
 const KUBIT_MCP_URL = 'https://agent.kubit.ai/mcp';
 
 // Shared MCP auth-failure handling, inlined via the {{KUBIT_MCP_AUTH}} marker
-// into every skill that calls the `init` tool (connect, inspect, report).
+// into every skill that calls the `init` tool (connect, inspect, report, help).
 // Skills can't read each other's bodies at runtime — the model only has the
 // current SKILL.md in context — so this guidance has to be inlined at install
 // time rather than referenced across files. Single source of truth lives here.
@@ -56,7 +56,7 @@ const SHIPPED_AGENTS = ['kubit-analyst', 'kubit-blame-mapper', 'kubit-blame-corr
 
 // Explicit allowlist of skills that ship. Source folders under `skills/` not
 // listed here stay in the repo but are not installed. Keep this in sync with
-// README.md, skills/help/SKILL.md, CHANGELOG.md, and CLAUDE.md.
+// README.md, skills/kubit-help/SKILL.md, CHANGELOG.md, and CLAUDE.md.
 const SHIPPED_SKILLS = ['kubit-blame', 'kubit-connect', 'kubit-help', 'kubit-inspect', 'kubit-report', 'kubit-update', 'kubit-integrate', 'kubit'];
 
 const HELP = `kubit-agent-plugin — install the Kubit agent plugin into Claude Code and/or Cursor

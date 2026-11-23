@@ -33,8 +33,8 @@ discovery index.
 | specific traces, sessions, users, events; who is in a cohort; debug a failure | /kubit-inspect |
 | the code change or commit behind a regression                    | /kubit-blame                |
 | check for or install a plugin update                             | /kubit-update               |
-| what a field means, or which field holds a value                 | `explain_field` (no skill)  |
-| make a Kubit dashboard from reports already built                | `import_dashboard` (no skill) |
+| what a field means, or which field holds a value                 | `explain_field`: ask in your own words after /kubit-connect |
+| make a Kubit dashboard from reports already built                | `import_dashboard`: ask in your own words after /kubit-connect |
 | what Kubit can do, which skill to use, file a support request    | /kubit-help                 |
 | why did a metric change / what regressed after an event          | Investigation chain (below) |
 

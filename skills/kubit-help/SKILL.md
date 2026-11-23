@@ -43,7 +43,7 @@ When calling the `help` MCP tool, the `text` argument MUST be formatted as:
 Kubit makes the first line the ticket's subject and the rest its body. Do not
 add `---` lines or say where the request came from: Kubit adds a footer that does.
 
-Before the preview of a BUG or QUESTION, read the project's manifest and
+Before the preview of a ticket, read the project's manifest and
 lockfile (`package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`) in the
 working directory. With no manifest there, write "No project open." If the files
 cannot be read, leave the project lines out. The context then includes:
@@ -66,8 +66,8 @@ Guidelines:
 - If this issue was already filed in this conversation, give its earlier
   ticket id instead of filing a second one.
 - Pick the type by what happened: BUG for a Kubit error, FEEDBACK for a
-  missing capability, QUESTION for a question about the user's Kubit account
-  that the docs cannot answer.
+  missing capability, QUESTION for a Kubit question the docs do not answer,
+  or when the user asks for the Kubit team.
 - Tailor depth to `requestType`: BUG and QUESTION should include reproduction
   details and any errors; FEEDBACK needs only the language and framework.
 - Keep the context concise — a short labeled list is better than a wall of
