@@ -1,6 +1,6 @@
 ---
 name: kubit-analyst
-description: Analyzes Kubit CSV exports using pandas — the required analysis path for multi-result queries. Spawned by the inspect and report skills whenever an export URL is available, returning a table-first summary of the full dataset.
+description: Analyzes Kubit CSV exports using pandas, for full-dataset analysis beyond the rows a report result shows. Spawned by the inspect and report skills when an export URL is available and the question needs the whole dataset, returning a table-first summary.
 tools: Bash, Read, Write
 model: sonnet
 ---

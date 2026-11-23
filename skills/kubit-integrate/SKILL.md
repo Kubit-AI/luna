@@ -134,8 +134,8 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
    - `sinks_detected == [] && sources_detected == []` → print
      *"No LLM tracing detected in this repo. `/kubit-integrate`
      recognises sinks (Langfuse, Braintrust) and sources (Vercel AI,
-     OpenTelemetry GenAI, LangChain). Add one and re-run, or reach
-     out on #kubit."* and exit 0. No wsctx touch, no workspace, no
+     OpenTelemetry GenAI, LangChain). Add one and re-run, or run
+     `/kubit-help` to contact Kubit support."* and exit 0. No wsctx touch, no workspace, no
      writes.
    - `sinks_detected == [] && sources_detected == {langchain}` →
      print *"Detected LangChain, no sink. LangChain emits no OTel
@@ -193,7 +193,8 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        If the current workspace is the only one, print instead
        `No other workspaces in "<org>".` as a single line.
      - Workspaces carrying the `[example: read-only, cannot mint api
-       key]` tag in the `init` response are demo-only. Surface the tag
+       key]` or `[modeled: read-only, no ingestion / api key]` tag in
+       the `init` response cannot take an app's traces. Surface the tag
        verbatim after the workspace name when listing them. If the
        user picks one via option 1 or 2, re-prompt to either switch to
        a non-demo workspace or create a new one.
@@ -213,7 +214,7 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
    - **Branch: switch to existing** →
      - Ask the user to pick one of the already-listed workspaces by
        number or name.
-     - Call `switch { orgId, workspaceId, wsctx }` with the current
+     - Call `switch { orgId, workspaceId }` with the current
        org id and the chosen workspace id. Replace the in-memory
        wsctx with the one returned by `switch`.
        `workspace_action = switched`. Skip to step 5.
@@ -234,11 +235,24 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        and ask for an explicit confirm before the MCP call. The user
        can edit either input and re-review.
      - Call `workspace_create { name, timezone, wsctx }`. Warn the
-       user the call can take ~30 seconds. The response returns a
-       wsctx pinned to the newly created workspace; adopt it.
-       `workspace_action = created`.
+       user the call can take ~30 seconds. It creates the workspace,
+       initializes its warehouse and mints its API key in one call.
+       On success the response returns a wsctx pinned to the new
+       workspace (adopt it) and the API key: hold the key in memory as
+       for a minted key, and do not repeat it in your text — it is
+       already in the tool result. `workspace_action = created`,
+       `key_source = minted`. Skip step 5: do not call `workspace_mint_key`,
+       and do not ask for the key source.
+     - A response starting `Workspace created (` (the warehouse init
+       or the key mint failed) leaves a workspace with
+       no key, and no wsctx for it. Surface the message and exit 0 with
+       *"Workspace <id> was created without an API key — run
+       `/kubit-connect switch` to select it, then re-run
+       `/kubit-integrate` and pick it to mint a key."* No write, no
+       instrumentation.
 
-5. **Obtain the ingestion key.** Two branches: mint a fresh key against
+5. **Obtain the ingestion key** (`used` and `switched` only; `created`
+   already has its key from `workspace_create`). Two branches: mint a fresh key against
    the workspace, or accept an existing key the user already has (e.g.
    issued from the Kubit UI). Record the choice as `key_source` ∈
    {`minted`, `pasted`} for the close-out in step 9.
@@ -270,11 +284,10 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        pass the computed value straight to `workspace_mint_key`.
      - Call `workspace_mint_key { wsctx, note }` against whichever
        wsctx step 4 produced (the original wsctx for the `used`
-       branch, the one returned by `switch` for `switched`, or the one
-       returned by `workspace_create` for `created`). The `note` field
+       branch, the one returned by `switch` for `switched`). The `note` field
        is required by the server (1–255 chars, non-empty).
-     - Hold the minted key in memory only. Never log it, never echo it
-       back to the user. The only places it is allowed to land are the
+     - Hold the minted key in memory only. Never log it, and do not
+       repeat it in your text (it is already in the tool result). The only places it is allowed to land are the
        env-file write in step 6 or the fallback `export` line.
 
    - **Branch: paste an existing key (`key_source = pasted`).**
@@ -636,7 +649,6 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
         - `switched` → `Kubit workspace "<name>" selected; new API key written to <file>`
         - `used`     → `Kubit workspace "<name>" selected; new API key written to <file>`
       - `key_source == pasted`:
-        - `created`  → `Kubit workspace "<name>" created; API key written to <file>`
         - `switched` → `Kubit workspace "<name>" selected; API key written to <file>`
         - `used`     → `Kubit workspace "<name>" selected; API key written to <file>`
 
@@ -829,21 +841,24 @@ messages are in the sub-bullets.
    again when ready."*
 
 4. **MCP errors.** Surface the server message and exit 0; the
-   workspace-state context differs by phase.
+   workspace-state context differs by phase. Then offer a support
+   ticket: call `help` with `requestType: BUG` and no `draftId` to
+   preview it, ask as the preview says, and file only on the user's
+   yes.
    - `switch` fails → the wsctx is unchanged (still pinned to the
      previous workspace); no mint, no write, no instrumentation.
-   - `workspace_create` fails → nothing was created; no mint, no write,
-     no instrumentation.
-   - `workspace_mint_key` fails → workspace already exists. Append
-     *"Workspace '<name>' created but key mint failed — re-run
-     `/kubit-integrate`, or use `/kubit-connect switch` to reuse the
-     workspace."*
+   - `workspace_create` fails without `Workspace created (` → nothing
+     was created; no write, no instrumentation. With `Workspace created
+     (<id>) but …` → see step 4's create branch.
+   - `workspace_mint_key` fails (`used` or `switched`) → the workspace
+     is unchanged. Append *"Key mint failed for workspace '<name>' —
+     re-run `/kubit-integrate` to try again."*
    - `workspace_mint_key` rejects `note` (length or empty) → this is a
      skill bug — the computed default is always trimmed to 255 chars
      with a non-empty fallback. Surface the server message verbatim
      and exit 0 without retry.
    - Mint response missing the key field → fatal: *"workspace_mint_key
-     succeeded but no key in response — report to #kubit."*
+     succeeded but no key in response — run `/kubit-help` to contact Kubit support."*
    - Paste branch: empty input twice → exit 0 with *"No key provided —
      re-run `/kubit-integrate` when ready."* No env-file write, no
      install, no wiring.
@@ -912,7 +927,7 @@ Verify with: node -r ts-node/register -e "..."
 Input: *"set up kubit tracing"*
 Output: *"No LLM tracing detected in this repo. `/kubit-integrate`
 recognises sinks (Langfuse, Braintrust) and sources (Vercel AI,
-OpenTelemetry GenAI). Add one and re-run, or reach out on #kubit."*
+OpenTelemetry GenAI). Add one and re-run, or run `/kubit-help` to contact Kubit support."*
 Exit 0.
 
 **Direct SDK, no source.**

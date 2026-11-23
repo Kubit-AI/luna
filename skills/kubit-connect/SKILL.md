@@ -15,10 +15,9 @@ Two distinct things must be in place for Kubit MCP calls to work, and
 this skill only owns the second:
 
 1. **MCP authentication** — a one-time browser OAuth sign-in against
-   the Kubit Agent MCP server. Driven by Claude Code's built-in
-   `/mcp` command (or, in environments without it, by opening an auth
-   URL the MCP surfaces). Until this completes, every Kubit MCP call
-   — including `init` — fails with an auth error. See *Pre-flight:
+   the Kubit Agent MCP server, through the server's `authenticate` tool
+   (with Claude Code's `/mcp` as the fallback). Until this completes,
+   the Kubit tools are not available, or fail with an auth error. See *Pre-flight:
    MCP authentication* below.
 2. **Workspace context (`wsctx`)** — the `WSCTX` value returned by
    `init` and `switch`. Pass it on every subsequent Kubit MCP call. It
@@ -67,22 +66,27 @@ Always continue regardless — this notice is informational only.
 
 Run on every entry to this skill, after the update check.
 
-Attempt the `init` MCP tool. If it succeeds, MCP auth is already
-established — capture the response and continue with the rest of the
-flow (Example 1 or 2; for `switch`, you may instead call `switch`
-directly and treat its auth error the same way).
+If the Kubit tools are not available (only `authenticate` is offered
+for the Kubit server), sign in first as below. Otherwise attempt the
+`init` MCP tool. If it succeeds, MCP auth is already established —
+capture the response and continue with the rest of the flow (Example 1
+or 2; for `switch`, you may instead call `switch` directly and treat its
+auth error the same way).
 
 {{KUBIT_MCP_AUTH}}
 
 ## Rules
+- Use the `<memory-context>` and `<lumos-instructions>` blocks and the Lumos skills that `init` and `switch` return in every Kubit call: workspace instructions, then the current request, then personal instructions, then memory; the current schema wins over all of them. When the user corrects an event, field, metric or cohort, or states a standing preference for Kubit results, save it with `memory(action="update", target="user", operations=[{op: "add", text: "…"}], wsctx)` before finishing; change workspace memory only when they ask for it.
+- When a Kubit call fails and stops the flow (not an auth error), offer a support ticket: call `help` with `requestType: BUG` and no `draftId` to preview it, ask as the preview says, and file only on the user's yes.
 
+- When a Kubit result ends with "Lumos context changed since it was loaded", call `switch` once with the same org and workspace to reload it, and use the wsctx it returns from then on. Do not call it again for the same notice.
 - Skip organization and workspace prompts if the user has only one of each
-- Do not proceed to other skills if MCP authentication is not established — open the surfaced auth URL for the user (falling back to `/mcp` on Claude Code or the Cursor inline prompt when no URL surfaces) per *Pre-flight: MCP authentication*.
+- Do not proceed to other skills if MCP authentication is not established — sign in with the server's `authenticate` tool (falling back to `/mcp` on Claude Code, or Cursor Settings → MCP) per *Pre-flight: MCP authentication*.
 - Do not proceed to other skills if you don't have a `WSCTX` obtained from `init` or `switch` — call one of them first.
-- Do not persistently store the wsctx, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
+- Do not persistently store the wsctx, keep it in context window and if it is lost - request a new one with `switch` for the workspace already in use (or `init` when none is known): `init` may land on a different workspace, since it reads preferences shared across clients.
 - Refresh wsctx after 1 hour idle (not a security timeout — just re-pins the workspace)
 - orgId and workspaceId must always be passed as a pair to `switch`
-- Workspaces carrying the `[example: read-only, cannot mint api key]` tag in the `init` response are demo-only — surface the tag verbatim when listing them. If the user wants to instrument an app against one, route them to `/kubit-integrate` to switch to or create a real workspace.
+- Workspaces carrying the `[example: read-only, cannot mint api key]` or `[modeled: read-only, no ingestion / api key]` tag in the `init` response cannot take an app's traces — surface the tag verbatim when listing them. If the user wants to instrument an app against one, route them to `/kubit-integrate` to switch to or create a real workspace.
 - Organizations in the `init` response may carry a `[created by: <name>]` annotation. Surface it verbatim alongside the org name (both for the current org and when listing other orgs) so the user can tell apart orgs they own from orgs created by colleagues.
 
 ## Examples

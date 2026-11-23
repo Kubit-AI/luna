@@ -60,6 +60,13 @@ can determine from the current conversation or by looking at the project
 Guidelines:
 - Only include information you actually know. Do not invent versions, names,
   or errors. Omit anything unknown.
+- No secrets, no personal data, and no trace or prompt content: cite the
+  trace or report id instead.
+- If this issue was already filed in this conversation, give its earlier
+  ticket id instead of filing a second one.
+- Pick the type by what happened: BUG for a Kubit error, FEEDBACK for a
+  missing capability, QUESTION for a question about the user's Kubit account
+  that the docs cannot answer.
 - Tailor depth to `requestType`: BUG and QUESTION should include reproduction
   details and any errors; FEEDBACK usually only needs a brief environment
   summary.
@@ -118,14 +125,15 @@ traces to code and ranks recent commits.
 ### /kubit-inspect
 Retrieves raw data from Kubit — traces, sessions, users, and events. The go-to
 skill for debugging failures, investigating unexpected behavior, or drilling into
-a specific segment of data. Returns up to 5 results by default.
+a specific segment of data, or who is in a cohort. Shows a sample of the
+matching rows and the full set as a CSV.
     /kubit-inspect failed traces with intent Checkout since yesterday
     /kubit-inspect sessions where token cost > $5 in the last 2 hours
     /kubit-inspect users who rephrased more than 2 times last week
 ---
 ### /kubit-report
-Finds, opens, and creates Kubit analytics reports — Grids, Queries,
-Funnels, Flows, and Retention reports. Use this for trends, aggregations, and
+Finds, opens, creates, and changes Kubit analytics reports — queries, data
+tables, funnels, paths, retention, significance tests, and agent flows. Use this for trends, aggregations, and
 LLM performance analysis. Searches existing reports before creating new ones.
     /kubit-report daily failed traces
     /kubit-report build a funnel for prompt → intent → tool call → response
@@ -139,12 +147,27 @@ since the installed version, and runs the installer after confirmation.
 
 ---
 
+### Also available through the Kubit MCP server
+No skill needed: ask for these in your own words.
+- `import_dashboard` — build a Kubit dashboard from reports you made.
+- `publish_component` — publish a filter, measure, virtual event, binning or
+  cohort for your workspace. Permanent; only when you ask for it.
+- `explain_field` — what a field means, or which field holds a value.
+- `memory` — what Kubit remembers about you and your workspace (Lumos memory).
+- `skill` — find, run, create or edit your Lumos skills. They also appear as
+  MCP prompts.
+- `investigate_agent_flow_failure` / `inspect_agent_flow_activity` — why
+  agent traces fail at a node of an agent flow, and those traces in Activity.
+
+---
+
 ## Rules
 
 - Don't require a workspace context — this skill must work before /kubit-connect is complete.
   However, the `help` mcp call does require a wsctx - call `init` first if you don't already have a wsctx in
-  the context and `help` needs to be called. If that `init` (or the `help` call) returns an
-  auth/unauthenticated error, do not improvise — follow **MCP authentication** below. The skill
+  the context and `help` needs to be called. If `init` is not available (only `authenticate` is
+  offered for the Kubit server), or `init` or `help` returns an auth/unauthenticated error, do
+  not improvise — follow **MCP authentication** below. The skill
   list above never needs auth; the `help` and `search_docs` MCP calls do. `search_docs` takes no
   wsctx, so it needs no `init` first, and an auth error from it goes to **MCP authentication** too.
 - When calling `help`, always format `text` as a summary line under 80

@@ -15,13 +15,15 @@ An agent plugin that adds `/kubit-*` skills to Claude Code and Cursor for workin
 | `/kubit-report`    | Find, run, or create analytics reports                           |
 | `/kubit-update`    | Check npm for a new version and install it                       |
 
+The Kubit MCP server also builds dashboards from your reports, publishes components, explains fields, and keeps your Lumos memory and Lumos skills — ask for these in your own words.
+
 ## Install
 
 ```bash
 npx @kubit-ai/agent-plugin              # prompts for Claude Code, Cursor, or both
 ```
 
-Flags: `--global` (default, user-wide) or `--local` (current directory); `--uninstall` to remove; `--yes` to skip the location prompt (runtime is always prompted).
+Flags: `--global` (default, user-wide) or `--local` (current directory); `--uninstall` to remove; `--yes` to skip the location prompt; `--runtime claude|cursor|both` to skip the runtime prompt.
 
 After install, restart the runtime and try `/kubit-help`.
 
@@ -31,7 +33,7 @@ Run `/kubit-update` inside the runtime. The skill reads the installed version fr
 
 ## MCP server
 
-The plugin bundles a `.mcp.json` that auto-wires Claude Code to the Kubit MCP server.
+The installer adds the Kubit MCP server (`kubit-agent`, `https://agent.kubit.ai/mcp`) to your Claude Code or Cursor MCP config.
 
 ## License
 

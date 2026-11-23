@@ -29,10 +29,12 @@ discovery index.
 | :-------------------------------------------------------------- | :-------------------------- |
 | sign in, switch org/workspace, "no workspace context"            | /kubit-connect              |
 | start shipping traces into Kubit, wire the SDK, mint a key       | /kubit-integrate            |
-| trends, aggregates, funnels/flows/retention, a metric over time  | /kubit-report               |
-| specific traces, sessions, users, events; debug a failure        | /kubit-inspect              |
+| trends, aggregates, funnels/paths/retention, a metric over time; change a report | /kubit-report |
+| specific traces, sessions, users, events; who is in a cohort; debug a failure | /kubit-inspect |
 | the code change or commit behind a regression                    | /kubit-blame                |
 | check for or install a plugin update                             | /kubit-update               |
+| what a field means, or which field holds a value                 | `explain_field` (no skill)  |
+| make a Kubit dashboard from reports already built                | `import_dashboard` (no skill) |
 | what Kubit can do, which skill to use, file a support request    | /kubit-help                 |
 | why did a metric change / what regressed after an event          | Investigation chain (below) |
 

@@ -18,33 +18,32 @@ const KUBIT_MCP_URL = 'https://agent.kubit.ai/mcp';
 // Skills can't read each other's bodies at runtime — the model only has the
 // current SKILL.md in context — so this guidance has to be inlined at install
 // time rather than referenced across files. Single source of truth lives here.
-const KUBIT_MCP_AUTH = `If the call fails with an auth/unauthenticated error:
+const KUBIT_MCP_AUTH = `If the Kubit tools are not available, or a call fails with an auth/unauthenticated error:
 
-- **Primary path (any environment) — the error surfaces an auth URL:**
-  open it for the user immediately with the platform-appropriate
-  command via Bash — \`open <url>\` (macOS), \`xdg-open <url>\` (Linux),
-  or \`start <url>\` (Windows) — and also render the URL as a markdown
-  link with a short display label, e.g.
-  \`[Open the Kubit sign-in page](<url>)\`, so they can click it if the
-  browser doesn't launch. Render it as a labeled link, **not** as a
-  bare URL: these OAuth URLs are long and a raw URL wraps across lines
-  in the terminal, which breaks cmd/ctrl+click. This URL completes the
-  same sign-in loop \`/mcp\` would start, so prefer opening it over
-  routing the user elsewhere. Then ask the user to confirm they
-  completed sign-in before retrying.
-
-  The MCP client itself catches the browser's \`localhost\` callback and
-  stores the token — there is no MCP tool that completes the OAuth
-  code exchange, so **never ask the user to paste the callback /
-  redirect URL (or the \`code\`) back to you**; you cannot finish the
-  flow from it. If the callback page shows a connection error, the
-  client's localhost listener has expired — route the user to \`/mcp\`
-  (Claude Code) to run the managed sign-in, then retry.
-- **No URL surfaces — Claude Code:** ask the user to run \`/mcp\`,
-  complete sign-in for the Kubit MCP server, then re-run the command.
-- **No URL surfaces — Cursor:** Cursor typically prompts the user
-  inline to sign in to the MCP server on first use. Ask the user to
-  confirm that prompt, then re-run the command.
+- **Claude Code — sign in with the server's own tools.** While the
+  Kubit server is signed out, Claude Code offers \`authenticate\` and
+  \`complete_authentication\` for it in place of its other tools:
+  \`mcp__kubit-agent__authenticate\` for a plugin install
+  (\`mcp__<server>__authenticate\` if the server has another name).
+  1. Call \`authenticate\`. Open the URL it returns with the
+     platform-appropriate command via Bash — \`open <url>\` (macOS),
+     \`xdg-open <url>\` (Linux), or \`start <url>\` (Windows) — and always
+     also render it as a labeled markdown link, e.g.
+     \`[Open the Kubit sign-in page](<url>)\`, **not** a bare URL: these
+     OAuth URLs are long and a raw URL wraps across terminal lines,
+     which breaks cmd/ctrl+click. Ask the user to sign in.
+  2. If the browser then shows a failed \`localhost\` callback page (a
+     remote or SSH session), ask the user to paste the full URL from
+     the address bar, and pass it to \`complete_authentication\` as
+     \`callback_url\`. The URL is still valid although the page failed.
+  3. The Kubit tools come back on their own once sign-in completes.
+- **Claude Code, no \`authenticate\` tool** (the server still counts as
+  signed in, e.g. an expired session): ask the user to run \`/mcp\`,
+  choose the Kubit server and re-authenticate — or, over SSH,
+  \`claude mcp login kubit-agent --no-browser\` — then re-run the
+  command.
+- **Cursor:** ask the user to sign in under Cursor Settings → MCP →
+  kubit-agent, then re-run the command.
 
 Do not retry \`init\` in a loop. Surface the instructions and stop; the
 user re-runs the command once sign-in is done.`;

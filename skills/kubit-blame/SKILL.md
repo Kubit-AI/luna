@@ -108,8 +108,8 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Eight sources:
      *"No supported sink or source detected. `/kubit-blame` recognises
      sinks (Langfuse, Braintrust) and sources (Vercel AI, OpenTelemetry
      GenAI, LangChain, LangSmith, OpenInference, Traceloop, Logfire,
-     OpenAI Agents). Add tracing to your repo and re-run, or reach out
-     on #kubit."* and exit 0.
+     OpenAI Agents). Add tracing to your repo and re-run, or run
+     `/kubit-help` to contact Kubit support."* and exit 0.
    - `sinks_detected == [] && sources_detected == {langchain}` → print
      *"Detected LangChain, no sink. LangChain emits no spans on its
      own — they only reach Kubit through a Langfuse or Braintrust

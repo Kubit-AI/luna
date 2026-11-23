@@ -6,18 +6,45 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-24
+
+### Changed
+
+- `/kubit-report` and `/kubit-inspect` work with Kubit's current report
+  format again: reports are written in that format and checked by Kubit, and
+  `/kubit-report` can now change an existing report, saved as its next
+  version.
+- `/kubit-inspect` also shows who is in a cohort.
+- `/kubit-help` shows a support request exactly as Kubit will get it and
+  asks you to confirm with one click: send it, edit it first, or don't.
+- `/kubit-help` checks the Kubit docs before saying what Kubit can do, and
+  shows what they say before you send a question to the Kubit team.
+- Signing in to Kubit works after an expired session and on remote
+  machines, where you paste the sign-in page's address back.
+- `/kubit-integrate` creates a new workspace with one API key, and says
+  how to recover if creating it only partly succeeds.
+- Help with a problem now points to `/kubit-help` instead of a Slack
+  channel, and a failed Kubit call offers a support ticket.
+- `/kubit-report` offers to investigate why agent traces fail at a node of an
+  agent flow, reads a report's rows directly, and remembers your corrections
+  in Lumos memory.
+- `/kubit-help` lists what else the Kubit MCP server does: dashboards,
+  published components, field explanations, Lumos memory and Lumos skills.
+
+## [0.1.6] - 2026-08-20
+
+### Fixed
+
+- `/kubit-integrate` makes your app send its traces before it exits, and
+  names the service they come from.
+
+## [0.1.5] - 2026-07-29
+
 ### Added
 
 - `/kubit` — ask Kubit anything in natural language. Routes your
   question to the right `/kubit-*` skill, and chains `/kubit-report` →
   `/kubit-inspect` → `/kubit-blame` to find what caused a regression.
-
-### Changed
-
-- `/kubit-help` shows a support request exactly as Kubit will get it and
-  asks you to confirm with one click: send it, edit it first, or don't.
-- `/kubit-help` checks the Kubit docs before saying what Kubit can do, and
-  shows what they say before you send a question to the Kubit team.
 
 ## [0.1.4] - 2026-05-26
 
