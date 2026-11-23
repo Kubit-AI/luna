@@ -45,8 +45,8 @@ add `---` lines or say where the request came from: Kubit adds a footer that doe
 
 Before the preview of a BUG or QUESTION, read the project's manifest and
 lockfile (`package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`) in the
-working directory. With no project there, write "No project open." The context
-then includes:
+working directory. With no manifest there, write "No project open." If the files
+cannot be read, leave the project lines out. The context then includes:
 
 - **Project language and framework** (e.g. "TypeScript / Next.js 14",
   "Python 3.12 / FastAPI").
