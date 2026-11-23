@@ -20,7 +20,10 @@ or feature requests, using the `help` MCP call.
 2. If a specific skill is requested, explain it in detail with examples.
 3. If the user describes a task but is unsure which skill to use, identify
    the best match and suggest it with an example.
-4. Consider using the `help` MCP call if the request fits in its use cases.
+4. If the user asks what Kubit can do or how to do something in Kubit, call
+   the `search_docs` MCP tool and answer from the pages that answer it, with
+   their links. When the docs do not say, tell the user so; never guess.
+5. Consider using the `help` MCP call if the request fits in its use cases.
    When you do, format the `text` argument as described in "Filing a support
    request" below, and confirm with the user first as described in
    "Confirm before filing".
@@ -34,7 +37,8 @@ When calling the `help` MCP tool, the `text` argument MUST be formatted as:
 <the request in the user's words, then the context>
 ```
 
-Kubit makes the first line the ticket's subject and the rest its body.
+Kubit makes the first line the ticket's subject and the rest its body. Do not
+add `---` lines or say where the request came from: Kubit adds a footer that does.
 
 The context should include any of the following that you
 can determine from the current conversation or by looking at the project
@@ -68,6 +72,11 @@ ask in one `AskUserQuestion`: "Yes, send it", "Edit it first" or "No". On
 On "Edit it first", ask what to change and preview the new text. Where
 `AskUserQuestion` is not available, ask the same question in plain text and
 wait for a clear yes.
+
+For a QUESTION, the preview also shows what the Kubit docs say. Give the user
+what they say that answers the question, with their links, or say they do not
+answer it, then ask about the ticket as above: a user the docs answered picks
+"No".
 
 ## Skills
 
@@ -138,6 +147,7 @@ since the installed version, and runs the installer after confirmation.
   characters, then the request and context, per the "Filing a support request"
   section.
 - Never call `help` with a `draftId` without the user's yes from "Confirm before filing".
+- `search_docs` takes no wsctx, so it needs no `init` first.
 - Never invent skills that do not exist
 - Keep the skill list accurate — update it whenever a new skill is added
 - One example block per skill in the summary view; full detail on specific request

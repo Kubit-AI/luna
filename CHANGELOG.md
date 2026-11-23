@@ -16,6 +16,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - `/kubit-help` shows a support request exactly as Kubit will get it and
   asks you to confirm with one click: send it, edit it first, or don't.
+- `/kubit-help` checks the Kubit docs before saying what Kubit can do, and
+  shows what they say before you send a question to the Kubit team.
 
 ## [0.1.4] - 2026-05-26
 
