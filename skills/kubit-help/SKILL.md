@@ -43,16 +43,17 @@ When calling the `help` MCP tool, the `text` argument MUST be formatted as:
 Kubit makes the first line the ticket's subject and the rest its body. Do not
 add `---` lines or say where the request came from: Kubit adds a footer that does.
 
-The context should include any of the following that you
-can determine from the current conversation or by looking at the project
-(e.g. `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, lockfiles):
+Before the preview of a BUG or QUESTION, read the project's manifest and
+lockfile (`package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`) in the
+working directory. With no project there, write "No project open." The context
+then includes:
 
 - **Project language and framework** (e.g. "TypeScript / Next.js 14",
   "Python 3.12 / FastAPI").
-- **SDKs and libraries in use, with versions** — especially anything Kubit-
-  adjacent: `kubit-otel`, `@kubit-ai/otel`, observability sinks (Langfuse,
-  Braintrust), and LLM sources (Vercel AI SDK, OpenAI, Anthropic, LangChain,
-  OpenTelemetry GenAI).
+- **Kubit-related libraries, with versions**: `kubit-otel`, `@kubit-ai/otel`,
+  observability sinks (Langfuse, Braintrust), and LLM sources (Vercel AI SDK,
+  OpenAI, Anthropic, LangChain, OpenTelemetry GenAI). Public libraries only:
+  never internal package names, file paths or repository names.
 - **Troubleshooting signals from this conversation** — recent error messages,
   stack traces, failed MCP calls (tool name + error), and what the user has
   already tried.
@@ -68,8 +69,7 @@ Guidelines:
   missing capability, QUESTION for a question about the user's Kubit account
   that the docs cannot answer.
 - Tailor depth to `requestType`: BUG and QUESTION should include reproduction
-  details and any errors; FEEDBACK usually only needs a brief environment
-  summary.
+  details and any errors; FEEDBACK needs only the language and framework.
 - Keep the context concise — a short labeled list is better than a wall of
   prose.
 

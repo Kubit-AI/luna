@@ -19,6 +19,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   asks you to confirm with one click: send it, edit it first, or don't.
 - `/kubit-help` checks the Kubit docs before saying what Kubit can do, and
   shows what they say before you send a question to the Kubit team.
+- A `/kubit-help` bug report or question lists your project's language,
+  framework and Kubit-related libraries, read from its manifest.
 - Signing in to Kubit works after an expired session and on remote
   machines, where you paste the sign-in page's address back.
 - `/kubit-integrate` creates a new workspace with one API key, and says
