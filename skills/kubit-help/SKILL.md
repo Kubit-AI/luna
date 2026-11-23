@@ -30,15 +30,13 @@ or feature requests, using the `help` MCP call.
 When calling the `help` MCP tool, the `text` argument MUST be formatted as:
 
 ```
-<user's request>
----
-<conversation context>
+<one-line summary of the user's request, under 80 characters>
+<the request in the user's words, then the context>
 ```
 
-The line containing only `---` is the separator — it is mandatory even when
-the context block is short.
+Kubit makes the first line the ticket's subject and the rest its body.
 
-The conversation context block should include any of the following that you
+The context should include any of the following that you
 can determine from the current conversation or by looking at the project
 (e.g. `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, lockfiles):
 
@@ -48,7 +46,6 @@ can determine from the current conversation or by looking at the project
   adjacent: `kubit-otel`, `@kubit-ai/otel`, observability sinks (Langfuse,
   Braintrust), and LLM sources (Vercel AI SDK, OpenAI, Anthropic, LangChain,
   OpenTelemetry GenAI).
-- **Kubit workspace context info** — current org and workspace if a wsctx is active.
 - **Troubleshooting signals from this conversation** — recent error messages,
   stack traces, failed MCP calls (tool name + error), and what the user has
   already tried.
@@ -137,8 +134,9 @@ since the installed version, and runs the installer after confirmation.
   the context and `help` needs to be called. If that `init` (or the `help` call) returns an
   auth/unauthenticated error, do not improvise — follow **MCP authentication** below. The skill
   list above never needs auth; only the `help` MCP call does.
-- When calling `help`, always format `text` as `<user request>\n---\n<context>`
-  per the "Filing a support request" section. The `---` separator is mandatory.
+- When calling `help`, always format `text` as a summary line under 80
+  characters, then the request and context, per the "Filing a support request"
+  section.
 - Never call `help` with a `draftId` without the user's yes from "Confirm before filing".
 - Never invent skills that do not exist
 - Keep the skill list accurate — update it whenever a new skill is added
