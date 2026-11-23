@@ -16,28 +16,34 @@ or feature requests, using the `help` MCP call.
 
 ## Steps
 
-1. If no specific skill is requested, display the full skill list below.
+1. If the user asks which Kubit skills there are, or names none, display the
+   full skill list below.
 2. If a specific skill is requested, explain it in detail with examples.
 3. If the user describes a task but is unsure which skill to use, identify
    the best match and suggest it with an example.
-4. Consider using the `help` MCP call if the request fits in its use cases.
+4. If the user asks what the Kubit product (the app, Lumos, reports,
+   dashboards, workspaces, plans) can do or how to do something in it, call
+   the `search_docs` MCP tool and answer from the pages that answer it, with
+   their links. When the docs do not say, tell the user so; never guess, and
+   follow the next step the result gives.
+5. Consider using the `help` MCP call if the request fits in its use cases.
    When you do, format the `text` argument as described in "Filing a support
-   request" below.
+   request" below, and confirm with the user first as described in
+   "Confirm before filing".
 
 ## Filing a support request
 
 When calling the `help` MCP tool, the `text` argument MUST be formatted as:
 
 ```
-<user's request>
----
-<conversation context>
+<one-line summary of the user's request, under 80 characters>
+<the request in the user's words, then the context>
 ```
 
-The line containing only `---` is the separator — it is mandatory even when
-the context block is short.
+Kubit makes the first line the ticket's subject and the rest its body. Do not
+add `---` lines or say where the request came from: Kubit adds a footer that does.
 
-The conversation context block should include any of the following that you
+The context should include any of the following that you
 can determine from the current conversation or by looking at the project
 (e.g. `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, lockfiles):
 
@@ -47,7 +53,6 @@ can determine from the current conversation or by looking at the project
   adjacent: `kubit-otel`, `@kubit-ai/otel`, observability sinks (Langfuse,
   Braintrust), and LLM sources (Vercel AI SDK, OpenAI, Anthropic, LangChain,
   OpenTelemetry GenAI).
-- **Kubit workspace context info** — current org and workspace if a wsctx is active.
 - **Troubleshooting signals from this conversation** — recent error messages,
   stack traces, failed MCP calls (tool name + error), and what the user has
   already tried.
@@ -60,6 +65,21 @@ Guidelines:
   summary.
 - Keep the context concise — a short labeled list is better than a wall of
   prose.
+
+### Confirm before filing
+
+Call `help` without `draftId` first: it files nothing and returns the exact
+ticket. Show that ticket as the result says, kept separate from your own text, and
+ask in one `AskUserQuestion`: "Yes, send it", "Edit it first" or "No". On
+"Yes, send it", call `help` again with the same arguments and the `draftId`.
+On "Edit it first", ask what to change and preview the new text. Where
+`AskUserQuestion` is not available, ask the same question in plain text and
+wait for a clear yes.
+
+For a QUESTION, the preview also shows what the Kubit docs say. Give the user
+what they say that answers the question, with their links, or say they do not
+answer it, then ask about the ticket as above: a user the docs answered picks
+"No".
 
 ## Skills
 
@@ -125,9 +145,12 @@ since the installed version, and runs the installer after confirmation.
   However, the `help` mcp call does require a wsctx - call `init` first if you don't already have a wsctx in
   the context and `help` needs to be called. If that `init` (or the `help` call) returns an
   auth/unauthenticated error, do not improvise — follow **MCP authentication** below. The skill
-  list above never needs auth; only the `help` MCP call does.
-- When calling `help`, always format `text` as `<user request>\n---\n<context>`
-  per the "Filing a support request" section. The `---` separator is mandatory.
+  list above never needs auth; the `help` and `search_docs` MCP calls do. `search_docs` takes no
+  wsctx, so it needs no `init` first, and an auth error from it goes to **MCP authentication** too.
+- When calling `help`, always format `text` as a summary line under 80
+  characters, then the request and context, per the "Filing a support request"
+  section.
+- Never call `help` with a `draftId` without the user's yes from "Confirm before filing".
 - Never invent skills that do not exist
 - Keep the skill list accurate — update it whenever a new skill is added
 - One example block per skill in the summary view; full detail on specific request
@@ -138,4 +161,6 @@ since the installed version, and runs the installer after confirmation.
 
 ## Gotchas
 
-- If a user asks about a capability not yet built, say so clearly
+- If a user asks about a Kubit capability, search the docs first (step 4). If
+  they do not describe it, say the docs do not describe it, not that Kubit
+  cannot do it, and preview a FEEDBACK ticket as the `search_docs` result says.
