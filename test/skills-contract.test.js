@@ -170,6 +170,9 @@ mustNotSay('CHANGELOG.md', '`/kubit-blame` name the date');
 mustSay(INSPECT, '"users except those who…") → `activity`');
 mustSay(CONNECT, 'call `init` only when none is known');
 
+// Claude Code shows only the highlighted option's preview: the ticket must be on each one.
+mustSay(HELP, 'as the `preview` of every option');
+
 if (failures.length > 0) {
   console.error(failures.map((f) => `not ok - ${f}`).join('\n'));
   assert.fail(`${failures.length} skills contract check(s) failed`);

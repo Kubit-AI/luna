@@ -81,7 +81,9 @@ Guidelines:
 
 Call `help` without `draftId` first: it files nothing and returns the exact
 ticket. Show that ticket as the result says, kept separate from your own text, and
-ask in one `AskUserQuestion`: "Yes, send it", "Edit it first" or "No". On
+ask in one `AskUserQuestion`: "Yes, send it", "Edit it first" or "No". Put the
+exact ticket as the `preview` of every option, since only the highlighted option's
+preview is shown; where previews are not shown, print the ticket above the question. On
 "Yes, send it", call `help` again with the same arguments and the `draftId`.
 On "Edit it first", ask what to change and preview the new text. Where
 `AskUserQuestion` is not available, ask the same question in plain text and
