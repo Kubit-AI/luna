@@ -43,8 +43,9 @@ When calling the `help` MCP tool, the `text` argument MUST be formatted as:
 Kubit makes the first line the ticket's subject and the rest its body. Do not
 add `---` lines or say where the request came from: Kubit adds a footer that does.
 
-Before the preview of a ticket, read the project's manifest and
-lockfile (`package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`) in the
+Before the preview of a ticket, read the project's manifest (`package.json`,
+`pyproject.toml`, `requirements.txt`, `go.mod`) and its lockfile, if any
+(`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `poetry.lock`, `go.sum`), in the
 working directory. With no manifest there, write "No project open." If the files
 cannot be read, leave the project lines out. The context then includes:
 
@@ -55,8 +56,11 @@ cannot be read, leave the project lines out. The context then includes:
   OpenAI, Anthropic, LangChain, OpenTelemetry GenAI). Public libraries only:
   never internal package names, file paths or repository names.
 - **Troubleshooting signals from this conversation** — recent error messages,
-  stack traces, failed MCP calls (tool name + error), and what the user has
+  stack traces cut to the error and its public frames (no internal file paths),
+  failed MCP calls (tool name + error), and what the user has
   already tried.
+- **Reports**: the Kubit report page link of each report the issue is about,
+  copied from the tool results (the `reportUrl` or "Kubit report page" line).
 
 Guidelines:
 - Only include information you actually know. Do not invent versions, names,

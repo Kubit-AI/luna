@@ -22,7 +22,7 @@ this skill only owns the second:
 2. **Workspace context (`wsctx`)** — the `WSCTX` value returned by
    `init` and `switch`. Pass it on every subsequent Kubit MCP call. It
    is **not** an auth token; it only pins which org/workspace the
-   calls operate against. If lost, just call `init` or `switch` again.
+   calls operate against. If lost, call `switch` with the known org and workspace; call `init` only when none is known.
 
 ## When to Use
 
@@ -76,7 +76,7 @@ auth error the same way).
 
 ## Rules
 {{KUBIT_LUMOS_CONTEXT}}
-- When a Kubit call fails and stops the flow (not an auth error), {{KUBIT_BUG_TICKET}}
+- When a Kubit call fails and stops the flow after a wsctx exists (not an auth error), {{KUBIT_BUG_TICKET}} When `init` itself fails there is no wsctx for `help`: show the error and suggest `/kubit-help` once Kubit answers again.
 
 - Skip organization and workspace prompts if the user has only one of each
 - Do not proceed to other skills if MCP authentication is not established — sign in with Claude Code's `authenticate` tool for the Kubit server (falling back to `/mcp` on Claude Code, or Cursor Settings → MCP) per *Pre-flight: MCP authentication*.

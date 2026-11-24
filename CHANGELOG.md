@@ -31,9 +31,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   agent flow, and reads a report's rows directly.
 - `/kubit-report`, `/kubit-inspect` and `/kubit-connect` follow your Lumos
   instructions and remember your corrections in Lumos memory.
-- `/kubit-report` and `/kubit-blame` name the date an event or field last
-  changed meaning in your code's git history, when it falls inside the date
-  range.
+- `/kubit-report` names the date an event or field last changed meaning in
+  your code's git history, when it falls inside the date range.
 - `/kubit-help` lists what else the Kubit MCP server does: dashboards,
   published components, field explanations, Lumos memory and Lumos skills.
 

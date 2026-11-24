@@ -67,11 +67,11 @@ records from a report, use /kubit-inspect.
 
    **Agent flows.** A built or opened agent flow ends with its failed nodes. Offer `investigate_agent_flow_failure(reportId="<id>", position, label, …, wsctx)` (why traces fail at a node: the node the user names, otherwise the largest) and `inspect_agent_flow_activity(reportId="<id>", position, label, …, wsctx)` (open a node's traces in Activity) as its result names them, and run them only when the user asks. Their findings are associations, never causes.
 
-   **Reading rows.** For a slice, or when neither uv nor Python is installed, read rows directly: `get_report(reportId=<id>, where={"<column>": "<value>"}, columns=["…"], rows={offset: 0, limit: 50}, wsctx)` (limit up to 100; only with `reportId`, never with `refresh`). When a result says its data was reused or cached, say when it was computed and offer a refresh.
+   **Reading rows.** For a slice, or when neither uv nor Python is installed, read rows directly: `get_report(reportId=<id>, where={"<column>": "<value>"}, columns=["…"], rows={offset: 0, limit: 50}, wsctx)` (limit up to 100; only with `reportId`, never with `refresh`). An Activity report is paged, not filtered: pass only `rows` for it. When a result says its data was reused or cached, say when it was computed and offer a refresh.
 5. **Route the response.** The result already carries the report's first 20 rows and its series totals: answer from them. Spawn the kubit-analyst on the full dataset only when the question needs more than they show (more rows, a statistic over all of them, a breakdown the result doesn't have) and an export URL is available.
 
    **Decision rule:**
-   - **Create and search operations** → Present MCP response directly (no kubit-analyst).
+   - **Search and list operations** → Present MCP response directly (no kubit-analyst).
    - **Multiple search matches** → Compact list with id, name, type. Ask user to pick.
    - **Zero matches** → Offer to broaden search or create.
    - **Errors / regressions visible in the report** → After presenting the results, add a one-line natural-language suggestion: "If you want to find the code change behind this, try /kubit-blame." Do not run /kubit-blame yourself — let the user decide.
@@ -91,7 +91,7 @@ records from a report, use /kubit-inspect.
    3. Relay the analyst's findings as returned (headline + compact table + brief notable findings). Don't expand into prose.
 
    **Cached-dataset spawn** (for step 2 follow-ups that reuse `$CACHE_DIR/current.csv`):
-   1. Check prerequisites via Bash (`command -v uv`, `python3 --version`). If neither is available, read the rows of that report with `get_report(reportId=<id>, rows=…, wsctx)` instead.
+   1. Check prerequisites via Bash (`command -v uv`, `python3 --version`). If neither is available, read the rows of that report with `get_report(reportId=<id>, rows=…, wsctx)` when its id is in this conversation; otherwise tell the user so and stop.
    2. Spawn `kubit-analyst` with:
       - **Question:** The user's follow-up question
       - **Dataset path:** `$CACHE_DIR/current.csv` (already wsctx-scoped)

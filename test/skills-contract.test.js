@@ -40,7 +40,7 @@ mustSay(REPORT, 'get_report_instructions');
 mustSay(REPORT, 'get_analytics_schema');
 mustSay(REPORT, 'create_report(kind=');
 mustSay(REPORT, 'basedOnReportId');
-mustSay(REPORT, 'The report was not run'); // orion src/agent/create-report/direct.ts:151
+mustSay(REPORT, 'The report was not run'); // orion src/agent/create-report/direct.ts
 mustSay(REPORT, 'investigate_agent_flow_failure');
 mustSay(REPORT, 'Do NOT use for inspecting individual records');
 mustNotSay(REPORT, 'Flow, and Retention');
@@ -49,7 +49,7 @@ mustNotSay('skills/kubit-help/SKILL.md', 'Flows, and Retention');
 // /kubit-inspect builds rows and cohort subjects with create_report.
 mustSay(INSPECT, 'create_report(kind=');
 mustSay(INSPECT, '`inspection`');
-mustSay(INSPECT, 'capped by the warehouse'); // orion src/reports/render.ts:318
+mustSay(INSPECT, 'capped by the warehouse'); // orion src/reports/render.ts
 mustNotSay(INSPECT, 'Entity-type clarification');
 mustNotSay(INSPECT, 'Traces: short id, status, cost, latency');
 
@@ -59,7 +59,7 @@ for (const file of [...markdown('skills'), ...markdown('agents')]) {
   if (/\bgrids?\b/i.test(read(file))) failures.push(`${file} should not say grid`);
 }
 
-// orion src/mcp-tools/context-freshness.ts:39 appends this to a result when memory, instructions or skills changed.
+// orion src/mcp-tools/context-freshness.ts appends this to a result when memory, instructions or skills changed.
 for (const file of [REPORT, INSPECT, CONNECT]) mustSay(file, 'Lumos context changed since it was loaded');
 
 // Sign-in, as inlined into every skill: Claude Code's own authenticate tools first, /mcp when they are absent.
@@ -74,7 +74,7 @@ for (const text of [
 mustSay(CONNECT, 'Kubit tools are not available');
 
 // /kubit-integrate: workspace_create already mints the key; a partial failure leaves a workspace and no key.
-mustSay(INTEGRATE, 'A response starting `Workspace created (`'); // orion src/mcp-tools/workspace-create/register.ts:125,142,150
+mustSay(INTEGRATE, 'A response starting `Workspace created (`'); // orion src/mcp-tools/workspace-create/register.ts
 mustSay(INTEGRATE, 'do not call `workspace_mint_key`');
 mustNotSay(INTEGRATE, 'switch { orgId, workspaceId, wsctx }');
 mustNotSay(INTEGRATE, 'or the one returned by `workspace_create` for `created`');
@@ -86,7 +86,7 @@ mustNotSay(CONNECT, 'opening an auth URL the MCP surfaces');
 // switch returns a new wsctx; the old one keeps the stale markers.
 for (const file of [REPORT, INSPECT, CONNECT]) mustSay(file, 'use the wsctx it returns');
 mustSay(REPORT, '**Change**');
-mustSay(INSPECT, 'totalRows: 0'); // orion src/reports/render.ts:316
+mustSay(INSPECT, 'totalRows: 0'); // orion src/reports/render.ts
 mustNotSay(INSPECT, 'Zero results and errors return short text');
 mustNotSay(INSPECT, 'top errors, session count, top intent');
 mustSay(INSPECT, 'search_published_cohorts');
@@ -101,7 +101,6 @@ for (const file of [REPORT, INSPECT, CONNECT]) mustSay(file, '<lumos-instruction
 mustSay(INSPECT, '<memory-context>');
 mustSay(REPORT, 'memory(action="update"');
 mustSay(REPORT, 'git history');
-mustSay(BLAME, 'git history');
 for (const file of [CONNECT, INTEGRATE]) mustSay(file, '[modeled:');
 for (const tool of ['import_dashboard', 'publish_component', 'explain_field', '`memory`', '`skill`']) mustSay(HELP, tool);
 mustSay(HELP, 'already filed in this conversation');
@@ -123,15 +122,15 @@ mustNotSay(REPORT, 'required whenever an export URL is available');
 for (const header of ['## [0.2.0]', '## [0.1.6] - 2026-08-20', '## [0.1.5] - 2026-07-29']) mustSay('CHANGELOG.md', header);
 
 // Review fixes: each states what orion does.
-// orion src/mcp-tools/workspace-create/register.ts:146 — no MCP tool re-runs a failed warehouse init.
+// orion src/mcp-tools/workspace-create/register.ts — no MCP tool re-runs a failed warehouse init.
 mustSay(INTEGRATE, 'but warehouse init failed');
 mustSay(INTEGRATE, 'do not mint a key or instrument');
 // /kubit calls no Kubit tool itself: the two tool rows hand off after /kubit-connect.
 mustNotSay('skills/kubit/SKILL.md', '(no skill)');
 mustSay('skills/kubit/SKILL.md', 'ask in your own words after /kubit-connect');
-// orion QUESTION_RULE (src/agent/support/submit-support-request.ts:56).
+// orion QUESTION_RULE (src/agent/support/submit-support-request.ts).
 mustSay(HELP, 'or when the user asks for the Kubit team');
-// orion agent-flow tools take reportId as a string (src/mcp-tools/agent-flow/register.ts:37).
+// orion agent-flow tools take reportId as a string (src/mcp-tools/agent-flow/register.ts).
 mustSay(REPORT, 'reportId="<id>"');
 // authenticate is Claude Code's tool for a signed-out server, not the server's own.
 mustNotSay(CONNECT, "the server's `authenticate` tool");
@@ -151,6 +150,25 @@ for (const file of [REPORT, INSPECT, CONNECT]) {
 for (const file of [CONNECT, INTEGRATE]) {
   if (!fs.readFileSync(path.join(root, file), 'utf8').includes('{{KUBIT_BUG_TICKET}}')) failures.push(`${file} should use {{KUBIT_BUG_TICKET}}`);
 }
+
+// orion's help text asks for the report page links; an MCP client's chat is not in Kubit.
+mustSay(HELP, 'the Kubit report page link of each report the issue is about');
+
+// orion src/reports/get-report/rows.ts: an Activity report is paged, never filtered by where/columns.
+mustNotSay(INSPECT, 'where={');
+mustSay(INSPECT, 'An Activity report is paged, not filtered');
+mustSay(REPORT, 'An Activity report is paged, not filtered');
+// A failure without the "Workspace created (" text may still have left a workspace on an older orion.
+mustSay(INTEGRATE, 'check the workspace list with `/kubit-connect` before creating it again');
+
+// Every marker is substituted at install; {{KUBIT_IMPORT_STATEMENT}} is filled when the code is written.
+for (const file of markdown('skills')) {
+  const left = read(file).match(/\{\{KUBIT_(?!IMPORT_STATEMENT\b)\w+\}\}/g);
+  if (left) failures.push(`${file} keeps unsubstituted ${left.join(', ')}`);
+}
+mustNotSay('CHANGELOG.md', '`/kubit-blame` name the date');
+mustSay(INSPECT, '"users except those who…") → `activity`');
+mustSay(CONNECT, 'call `init` only when none is known');
 
 if (failures.length > 0) {
   console.error(failures.map((f) => `not ok - ${f}`).join('\n'));

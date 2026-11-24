@@ -36,6 +36,7 @@ aggregate analytics and trends, use /kubit-report.
 3. **Build the rows.** You write the report; Kubit checks and runs it. Every call takes the `wsctx` from step 1.
    1. Pick the report type (`kind`):
       - **Rows** (traces, sessions, users, events) → `activity`. The workspace decides what a row is: traces, sessions, users or spans where it has an OTEL Activity profile, otherwise events.
+      - **Users or sessions a cohort narrows or excludes** ("users except those who…") → `activity`, with the cohort filter.
       - **Who is in a cohort**, or a cohort comparison that names no metric → `inspection`. Name the cohorts in `create_report`'s separate `cohorts` argument; `search_published_cohorts` and `define_cohort` find or make them.
    2. `get_report_instructions(kind="<kind>", wsctx)` for that kind's rules and JSON Schema.
    3. `get_analytics_schema(wsctx)` for the exact event and field names.
@@ -76,7 +77,7 @@ aggregate analytics and trends, use /kubit-report.
    3. Relay the analyst's findings as returned: headline + compact table + brief notable findings. Don't expand into prose.
 
    **Cached-dataset spawn** (for step 2 follow-ups that reuse `$CACHE_DIR/current.csv`):
-   1. Check prerequisites via Bash the same way as above (`command -v uv`, `python3 --version`). If neither is available, read the rows of that report with `get_report(reportId=<id>, rows=…, wsctx)` instead.
+   1. Check prerequisites via Bash the same way as above (`command -v uv`, `python3 --version`). If neither is available, read the rows of that report with `get_report(reportId=<id>, rows=…, wsctx)` when its id is in this conversation; otherwise tell the user so and stop.
    2. Spawn `kubit-analyst` with:
       - **Question:** The user's follow-up question
       - **Dataset path:** `$CACHE_DIR/current.csv` (already wsctx-scoped)
@@ -96,7 +97,7 @@ aggregate analytics and trends, use /kubit-report.
 
 ## Rules
 {{KUBIT_LUMOS_CONTEXT}}
-- For more rows than the sample, a slice, or when neither uv nor Python is installed: `get_report(reportId=<id>, where={"<column>": "<value>"}, columns=["…"], rows={offset: 0, limit: 50}, wsctx)` reads the report's rows directly (limit up to 100; only with `reportId`).
+- For more rows than the sample, or when neither uv nor Python is installed: `get_report(reportId=<id>, rows={offset: 0, limit: 50}, wsctx)` reads the report's rows a page at a time (limit up to 100; only with `reportId`). An Activity report is paged, not filtered: for a slice, build it again with the filter in its definition.
 - Route by intent, not row count: analytical asks auto-spawn the analyst; lookup asks render the inline sample directly and offer the analyst as a trailing next step.
 - Do not auto-spawn the analyst on lookup-style queries (single- or multi-row). Offer it; let the user decide.
 - For multi-row lookup output, render the compact table from the MCP's inline sample. For multi-row analytical output, lead with the analyst's compact table.

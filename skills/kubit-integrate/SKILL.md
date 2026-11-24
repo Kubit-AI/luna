@@ -247,8 +247,8 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        - `… but warehouse init failed` → the workspace has no warehouse,
          and no tool can initialize one: do not mint a key or instrument
          against it. Exit 0 with *"Workspace <id> was created, but its
-         warehouse could not be set up."* and offer the BUG ticket of
-         step 4, naming the workspace id.
+         warehouse could not be set up."* and {{KUBIT_BUG_TICKET}} Name the
+         workspace id in the ticket.
        - `… but API key minting failed` or `… returned no entity` → exit 0
          with *"Workspace <id> was created without an API key — run
          `/kubit-connect switch` to select it, then re-run
@@ -848,8 +848,9 @@ messages are in the sub-bullets.
    workspace-state context differs by phase. Then {{KUBIT_BUG_TICKET}}
    - `switch` fails → the wsctx is unchanged (still pinned to the
      previous workspace); no mint, no write, no instrumentation.
-   - `workspace_create` fails without `Workspace created (` → nothing
-     was created; no write, no instrumentation. With `Workspace created
+   - `workspace_create` fails without `Workspace created (` → most
+     likely nothing was created; no write, no instrumentation. If the
+     user retries, check the workspace list with `/kubit-connect` before creating it again. With `Workspace created
      (<id>) but …` → see step 4's create branch.
    - `workspace_mint_key` fails (`used` or `switched`) → the workspace
      is unchanged. Append *"Key mint failed for workspace '<name>' —
