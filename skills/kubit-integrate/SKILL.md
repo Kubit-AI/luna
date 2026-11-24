@@ -238,9 +238,8 @@ Two sinks: `sink-langfuse.md`, `sink-braintrust.md`. Three sources:
        user the call can take ~30 seconds. It creates the workspace,
        initializes its warehouse and mints its API key in one call.
        On success the response returns a wsctx pinned to the new
-       workspace (adopt it) and the API key: hold the key in memory as
-       for a minted key, and do not repeat it in your text — it is
-       already in the tool result. `workspace_action = created`,
+       workspace (adopt it) and the API key: hold the key as step 5
+       says for a minted key. `workspace_action = created`,
        `key_source = minted`. Skip step 5: do not call `workspace_mint_key`,
        and do not ask for the key source.
      - A response starting `Workspace created (` leaves a workspace with
@@ -846,10 +845,7 @@ messages are in the sub-bullets.
    again when ready."*
 
 4. **MCP errors.** Surface the server message and exit 0; the
-   workspace-state context differs by phase. Then offer a support
-   ticket: call `help` with `requestType: BUG` and no `draftId` to
-   preview it, ask as the preview says, and file only on the user's
-   yes.
+   workspace-state context differs by phase. Then {{KUBIT_BUG_TICKET}}
    - `switch` fails → the wsctx is unchanged (still pinned to the
      previous workspace); no mint, no write, no instrumentation.
    - `workspace_create` fails without `Workspace created (` → nothing

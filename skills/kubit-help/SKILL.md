@@ -165,9 +165,8 @@ No skill needed: ask for these in your own words.
 
 - Don't require a workspace context — this skill must work before /kubit-connect is complete.
   However, the `help` mcp call does require a wsctx - call `init` first if you don't already have a wsctx in
-  the context and `help` needs to be called. If `init` is not available (only `authenticate` is
-  offered for the Kubit server), or `init` or `help` returns an auth/unauthenticated error, do
-  not improvise — follow **MCP authentication** below. The skill
+  the context and `help` needs to be called. On an auth error or missing Kubit tools, follow
+  **MCP authentication** below. The skill
   list above never needs auth; the `help` and `search_docs` MCP calls do. `search_docs` takes no
   wsctx, so it needs no `init` first, and an auth error from it goes to **MCP authentication** too.
 - When calling `help`, always format `text` as a summary line under 80

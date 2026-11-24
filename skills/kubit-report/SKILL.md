@@ -10,7 +10,7 @@ description: Use this skill to view, build, change, or search Kubit analytics re
 This skill finds, opens, and creates Kubit analytics reports for LLM
 ops analysis — traces, sessions, intents, token cost, model performance, and user
 behavior. Supported report types: query, data table, funnel, path, retention,
-significance test, and agent flow. Raw rows and the subjects of a cohort are
+significance test, and agent flow. Raw rows and who is in a cohort are
 /kubit-inspect's.
 Workspace and organization are managed by /kubit-connect. To drill into individual
 records from a report, use /kubit-inspect.
@@ -25,7 +25,7 @@ records from a report, use /kubit-inspect.
 
 ## Workflow
 
-1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch, redirect to /kubit-connect. If `init` is not available (only `authenticate` is offered for the Kubit server) or fails with an auth error, do not improvise — follow **MCP authentication** below.
+1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch, redirect to /kubit-connect. On an auth error or missing Kubit tools, follow **MCP authentication** below.
 2. **Check for a cached dataset (wsctx-scoped).** Compute the cache key from the current MCP WSCTX token so concurrent conversations don't collide:
 
    ```bash
@@ -51,7 +51,7 @@ records from a report, use /kubit-inspect.
      1. Pick the report type (`kind`): `query`, `dataTable`, `funnel`, `path`, `retention`, `significance` or `agentFlow`.
      2. `get_report_instructions(kind="<kind>", wsctx)` for that kind's rules and JSON Schema.
      3. `get_analytics_schema(wsctx)` for the exact event and field names.
-     4. `create_report(kind="<kind>", definition=<report JSON>, wsctx)`. A report that names cohorts passes them in the separate `cohorts` argument; `search_published_cohorts` and `define_cohort` find or make them.
+     4. `create_report(kind="<kind>", definition=<definition>, wsctx)`. A report that names cohorts passes them in the separate `cohorts` argument; `search_published_cohorts` and `define_cohort` find or make them.
      5. A result starting **The report was not run** lists what to fix: resend as it says. It cost nothing.
 
      Ask the user only when the schema cannot settle what they meant, or when Kubit's result offers choices.
@@ -59,15 +59,15 @@ records from a report, use /kubit-inspect.
    `reportId` and `searchTerm` are mutually exclusive — never pass both.
 
    **Change a report** (one built in this session, or one the user names by id):
-   1. `get_report(reportId=<id>, wsctx)` shows its definition as report JSON.
-   2. Change that JSON as the user asked.
-   3. `create_report(kind="<kind>", definition=<changed JSON>, basedOnReportId="<id>", wsctx)`. Kubit files it as the report's next version where it can, with its chart settings.
+   1. `get_report(reportId=<id>, wsctx)` shows its definition.
+   2. Change that definition as the user asked.
+   3. `create_report(kind="<kind>", definition=<changed definition>, basedOnReportId="<id>", wsctx)`. Kubit files it as the report's next version where it can, with its chart settings.
 
-   A change of report type is a new report: build it through the **Create** steps above, without `basedOnReportId`, and tell the user it is a new report. When `get_report` says the definition **cannot be shown as JSON**, it cannot be changed by editing: build a new report instead, and say why.
+   A change of report type is a new report: build it through the **Create** steps above, without `basedOnReportId`, and tell the user it is a new report.
 
    **Agent flows.** A built or opened agent flow ends with its failed nodes. Offer `investigate_agent_flow_failure(reportId="<id>", position, label, …, wsctx)` (why traces fail at a node: the node the user names, otherwise the largest) and `inspect_agent_flow_activity(reportId="<id>", position, label, …, wsctx)` (open a node's traces in Activity) as its result names them, and run them only when the user asks. Their findings are associations, never causes.
 
-   **Reading rows.** `get_report(reportId=<id>, wsctx)` already shows the first 20 rows and the series totals: answer from them when they are enough. For a slice, or when neither uv nor Python is installed, read rows directly: `get_report(reportId=<id>, where={"<column>": "<value>"}, columns=["…"], rows={offset: 0, limit: 50}, wsctx)` (limit up to 100; only with `reportId`, never with `refresh`). When a result says its data was reused or cached, say when it was computed and offer a refresh.
+   **Reading rows.** For a slice, or when neither uv nor Python is installed, read rows directly: `get_report(reportId=<id>, where={"<column>": "<value>"}, columns=["…"], rows={offset: 0, limit: 50}, wsctx)` (limit up to 100; only with `reportId`, never with `refresh`). When a result says its data was reused or cached, say when it was computed and offer a refresh.
 5. **Route the response.** The result already carries the report's first 20 rows and its series totals: answer from them. Spawn the kubit-analyst on the full dataset only when the question needs more than they show (more rows, a statistic over all of them, a breakdown the result doesn't have) and an export URL is available.
 
    **Decision rule:**
@@ -75,13 +75,13 @@ records from a report, use /kubit-inspect.
    - **Multiple search matches** → Compact list with id, name, type. Ask user to pick.
    - **Zero matches** → Offer to broaden search or create.
    - **Errors / regressions visible in the report** → After presenting the results, add a one-line natural-language suggestion: "If you want to find the code change behind this, try /kubit-blame." Do not run /kubit-blame yourself — let the user decide.
-   - **Report data returned** → Answer from the rows and totals shown. When the question needs the whole dataset and there is an export URL, spawn kubit-analyst (see below); without uv or Python, read rows with `get_report(…, rows=…)` instead.
+   - **Report data returned** → Spawn kubit-analyst when the whole dataset is needed and there is an export URL (see below); otherwise see **Reading rows**.
    - **Whole dataset needed, no export URL** → Present the summary. Add a note: "Full-dataset analysis isn't available for this report (no CSV export)."
    - Relay any choices Kubit's result offers rather than guessing.
 
    **Kubit-analyst spawn procedure** (for report data + export URL):
    1. Check prerequisites via Bash:
-      - Run `command -v uv` and `python3 --version`. If neither `uv` nor `python3` is available, tell the user: "Full-dataset analysis requires uv or Python 3, which are not installed on this system." Then fall back to the report results. The kubit-analyst sub-agent handles environment setup and pandas installation internally.
+      - Run `command -v uv` and `python3 --version`. If neither `uv` nor `python3` is available, tell the user: "Full-dataset analysis requires uv or Python 3, which are not installed on this system." Then read the rows with `get_report(…, rows=…)` instead (see **Reading rows**). The kubit-analyst sub-agent handles environment setup and pandas installation internally.
    2. Spawn the `kubit-analyst` sub-agent with a prompt containing:
       - **Question:** The user's original question about the report
       - **Export URL:** The export URL from the MCP response text
@@ -91,7 +91,7 @@ records from a report, use /kubit-inspect.
    3. Relay the analyst's findings as returned (headline + compact table + brief notable findings). Don't expand into prose.
 
    **Cached-dataset spawn** (for step 2 follow-ups that reuse `$CACHE_DIR/current.csv`):
-   1. Check prerequisites via Bash (`command -v uv`, `python3 --version`). If neither is available, tell the user and stop — there's no MCP fallback on this path.
+   1. Check prerequisites via Bash (`command -v uv`, `python3 --version`). If neither is available, read the rows of that report with `get_report(reportId=<id>, rows=…, wsctx)` instead.
    2. Spawn `kubit-analyst` with:
       - **Question:** The user's follow-up question
       - **Dataset path:** `$CACHE_DIR/current.csv` (already wsctx-scoped)
@@ -105,8 +105,7 @@ records from a report, use /kubit-inspect.
 {{KUBIT_MCP_AUTH}}
 
 ## Rules
-- Use the `<memory-context>` and `<lumos-instructions>` blocks and the Lumos skills that `init` and `switch` return when writing a definition: workspace instructions, then the current request, then personal instructions, then memory; the current schema wins over all of them. When the user corrects an event, field, metric or cohort, or states a standing preference for Kubit results, save it with `memory(action="update", target="user", operations=[{op: "add", text: "…"}], wsctx)` before finishing; change workspace memory only when they ask for it.
-- When a Kubit result ends with "Lumos context changed since it was loaded", call `switch` once with the same org and workspace to reload it, and use the wsctx it returns from then on. Do not call it again for the same notice.
+{{KUBIT_LUMOS_CONTEXT}}
 - **Always render the report as `[<display>](<reportUrl>)`.** Whenever the MCP response contains `display` and `reportUrl` fields, present the report as a markdown link using `display` as the link text and `reportUrl` as the href. Never show the URL bare, and never present a report identifier without the link when both fields are available. Applies to every branch that surfaces a report — open, create, and each row of a multi-match list.
 - Always search before creating when intent is ambiguous
 - Never create multiple reports in one turn without confirming first

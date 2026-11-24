@@ -11,7 +11,7 @@ This repo is the `@kubit-ai/agent-plugin` npm package — an agent plugin that s
 - **Think first.** State assumptions explicitly. If multiple interpretations exist, surface them — don't pick silently. If something is unclear, stop and ask.
 - **Minimum change.** No speculative abstractions, flags, or error-handling for scenarios that can't happen. If it could be half the size, rewrite it.
 - **Surgical edits.** Every changed line traces to the request. Don't "improve" adjacent code, comments, or formatting. Match existing style even if you'd do it differently.
-- **Verify before done.** Name the check for each change and run it — e.g. cross-read `README.md` and `skills/help/SKILL.md` after a skill rename; walk through `bin/install.js` for both the Claude Code and Cursor paths after touching install logic.
+- **Verify before done.** Name the check for each change and run it — e.g. cross-read `README.md` and `skills/kubit-help/SKILL.md` after a skill rename; walk through `bin/install.js` for both the Claude Code and Cursor paths after touching install logic.
 
 ## Repository Layout
 
@@ -32,13 +32,13 @@ Each skill is `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `descripti
 
 `bin/install.js` has a `SHIPPED_SKILLS` allowlist that controls which source folders under `skills/` actually get installed. Source dirs are kubit-prefixed and the prefix is the source of truth — install.js copies them as-is (no rename). Currently ships: `kubit`, `kubit-blame`, `kubit-connect`, `kubit-help`, `kubit-inspect`, `kubit-integrate`, `kubit-report`, `kubit-update`.
 
-When shipping a new skill, add it to `SHIPPED_SKILLS` and also update the skill table in `README.md` and the listing in `skills/help/SKILL.md` so they stay in sync.
+When shipping a new skill, add it to `SHIPPED_SKILLS` and also update the skill table in `README.md` and the listing in `skills/kubit-help/SKILL.md` so they stay in sync.
 
-`bin/install.js` substitutes four template markers in every skill body at install time: `{{KUBIT_RUNTIME}}`, `{{KUBIT_CONFIG_DIR}}`, `{{KUBIT_SCOPE}}`, and `{{KUBIT_MCP_AUTH}}`. The first three are runtime/scope values; `{{KUBIT_MCP_AUTH}}` expands to the shared MCP auth-failure block (`KUBIT_MCP_AUTH` constant in `bin/install.js`) that connect, inspect, and report all inline — edit it in one place since skills can't reference each other's bodies at runtime. The pass is a no-op on skills that don't reference these markers.
+`bin/install.js` substitutes six template markers in every skill body at install time: `{{KUBIT_RUNTIME}}`, `{{KUBIT_CONFIG_DIR}}`, `{{KUBIT_SCOPE}}`, `{{KUBIT_MCP_AUTH}}`, `{{KUBIT_LUMOS_CONTEXT}}` and `{{KUBIT_BUG_TICKET}}`. The first three are runtime/scope values. The others expand to shared text, each a constant in `bin/install.js`: the MCP auth-failure block (connect, inspect, report, help), the Lumos memory and context-refresh rules (connect, inspect, report), and the support-ticket offer after a failed call (connect, integrate) — edit each in one place since skills can't reference each other's bodies at runtime. The pass is a no-op on skills that don't reference these markers.
 
 ## Versioning
 
-`package.json#version` is authoritative. `bin/install.js` reads it at install time to stamp `<config>/kubit/VERSION`. `package.json#files` controls what ships on npm. Bump `version` in `package.json` before publishing; no sync step.
+`package.json#version` is authoritative. `bin/install.js` reads it at install time to stamp `<config>/kubit/VERSION`. `package.json#files` controls what ships on npm. The Release workflow (`release-master.yml`) bumps `version` and refuses one that isn't greater than the current, so don't bump it in a PR.
 
 ## Slash-command spelling
 

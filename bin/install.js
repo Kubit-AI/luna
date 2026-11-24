@@ -233,15 +233,25 @@ function assertSafeConfigDir(configDir) {
   }
 }
 
+// Lumos context rules, inlined via {{KUBIT_LUMOS_CONTEXT}} into every skill that calls Kubit with a wsctx
+// (connect, inspect, report), so each stays in step with orion's memory and context-freshness rules.
+const KUBIT_LUMOS_CONTEXT = `- Use the \`<memory-context>\` and \`<lumos-instructions>\` blocks and the Lumos skills that \`init\` and \`switch\` return in every Kubit call and when writing a definition: workspace instructions, then the current request, then personal instructions, then memory; the current schema wins over all of them. When the user corrects an event, field, metric or cohort, or states a standing preference for Kubit results, save it with \`memory(action="update", target="user", operations=[{op: "add", text: "…"}], wsctx)\` before finishing; change workspace memory only when they ask for it.
+- When a Kubit result ends with "Lumos context changed since it was loaded", call \`switch\` once with the same org and workspace to reload it, and use the wsctx it returns from then on. Do not call it again for the same notice.`;
+
+// The support-ticket offer after a failed Kubit call, inlined via {{KUBIT_BUG_TICKET}} (connect, integrate).
+const KUBIT_BUG_TICKET = "offer a support ticket: call `help` with `requestType: BUG` and no `draftId` to preview it, ask as the preview says, and file only on the user's yes.";
+
 // Substitute the skill template markers (runtime/config/scope for the update
-// skill, plus the shared MCP-auth block). Safe on skills that don't use them —
+// skill, plus the shared MCP-auth, Lumos-context and support-ticket text). Safe on skills that don't use them —
 // the replace passes are no-ops.
 function substituteKubitMarkers(body, ctx) {
   return body
     .replace(/\{\{KUBIT_RUNTIME\}\}/g, ctx.runtime)
     .replace(/\{\{KUBIT_CONFIG_DIR\}\}/g, ctx.configDir)
     .replace(/\{\{KUBIT_SCOPE\}\}/g, ctx.scope)
-    .replace(/\{\{KUBIT_MCP_AUTH\}\}/g, KUBIT_MCP_AUTH);
+    .replace(/\{\{KUBIT_MCP_AUTH\}\}/g, KUBIT_MCP_AUTH)
+    .replace(/\{\{KUBIT_LUMOS_CONTEXT\}\}/g, KUBIT_LUMOS_CONTEXT)
+    .replace(/\{\{KUBIT_BUG_TICKET\}\}/g, KUBIT_BUG_TICKET);
 }
 
 // Recursively copy a file or directory from src to dest. Markdown files get

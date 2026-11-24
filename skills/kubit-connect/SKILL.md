@@ -66,9 +66,8 @@ Always continue regardless — this notice is informational only.
 
 Run on every entry to this skill, after the update check.
 
-If the Kubit tools are not available (only `authenticate` is offered
-for the Kubit server), sign in first as below. Otherwise attempt the
-`init` MCP tool. If it succeeds, MCP auth is already established —
+Attempt the `init` MCP tool; if the Kubit tools are not available,
+sign in first as below. If it succeeds, MCP auth is already established —
 capture the response and continue with the rest of the flow (Example 1
 or 2; for `switch`, you may instead call `switch` directly and treat its
 auth error the same way).
@@ -76,10 +75,9 @@ auth error the same way).
 {{KUBIT_MCP_AUTH}}
 
 ## Rules
-- Use the `<memory-context>` and `<lumos-instructions>` blocks and the Lumos skills that `init` and `switch` return in every Kubit call: workspace instructions, then the current request, then personal instructions, then memory; the current schema wins over all of them. When the user corrects an event, field, metric or cohort, or states a standing preference for Kubit results, save it with `memory(action="update", target="user", operations=[{op: "add", text: "…"}], wsctx)` before finishing; change workspace memory only when they ask for it.
-- When a Kubit call fails and stops the flow (not an auth error), offer a support ticket: call `help` with `requestType: BUG` and no `draftId` to preview it, ask as the preview says, and file only on the user's yes.
+{{KUBIT_LUMOS_CONTEXT}}
+- When a Kubit call fails and stops the flow (not an auth error), {{KUBIT_BUG_TICKET}}
 
-- When a Kubit result ends with "Lumos context changed since it was loaded", call `switch` once with the same org and workspace to reload it, and use the wsctx it returns from then on. Do not call it again for the same notice.
 - Skip organization and workspace prompts if the user has only one of each
 - Do not proceed to other skills if MCP authentication is not established — sign in with Claude Code's `authenticate` tool for the Kubit server (falling back to `/mcp` on Claude Code, or Cursor Settings → MCP) per *Pre-flight: MCP authentication*.
 - Do not proceed to other skills if you don't have a `WSCTX` obtained from `init` or `switch` — call one of them first.

@@ -28,8 +28,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Help with a problem now points to `/kubit-help` instead of a Slack
   channel, and a failed Kubit call offers a support ticket.
 - `/kubit-report` offers to investigate why agent traces fail at a node of an
-  agent flow, reads a report's rows directly, and remembers your corrections
-  in Lumos memory.
+  agent flow, and reads a report's rows directly.
+- `/kubit-report`, `/kubit-inspect` and `/kubit-connect` follow your Lumos
+  instructions and remember your corrections in Lumos memory.
+- `/kubit-report` and `/kubit-blame` name the date an event or field last
+  changed meaning in your code's git history, when it falls inside the date
+  range.
 - `/kubit-help` lists what else the Kubit MCP server does: dashboards,
   published components, field explanations, Lumos memory and Lumos skills.
 

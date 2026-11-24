@@ -24,7 +24,7 @@ aggregate analytics and trends, use /kubit-report.
 
 ## Workflow
 
-1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill. If `init` is not available (only `authenticate` is offered for the Kubit server) or fails with an auth error, do not improvise — follow **MCP authentication** below.
+1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill. On an auth error or missing Kubit tools, follow **MCP authentication** below.
 2. **Check for a cached dataset (wsctx-scoped).** Compute the cache key from the current MCP WSCTX token so concurrent conversations don't collide:
 
    ```bash
@@ -35,11 +35,11 @@ aggregate analytics and trends, use /kubit-report.
    If `$CACHE_DIR/current.json` exists, read it. If the user's message is a follow-up analysis or narrowing question about that same dataset (e.g. references "those", "the ones", "that set", or asks for a different cut of the data just shown), **skip the MCP call** and spawn `kubit-analyst` with `Dataset path: $CACHE_DIR/current.csv` plus the cached manifest's question and columns as Context. Otherwise proceed to the MCP call below — it will replace this workspace's cached dataset. When unsure whether the question is a follow-up, prefer a fresh fetch.
 3. **Build the rows.** You write the report; Kubit checks and runs it. Every call takes the `wsctx` from step 1.
    1. Pick the report type (`kind`):
-      - **Rows** (traces, sessions, users, events) → `activity`. The workspace decides what a row is: traces, sessions, users or spans where it has an Activity profile, otherwise events.
-      - **The subjects of a cohort**, or a cohort comparison that names no metric → `inspection`. Name the cohorts in `create_report`'s separate `cohorts` argument; `search_published_cohorts` and `define_cohort` find or make them.
+      - **Rows** (traces, sessions, users, events) → `activity`. The workspace decides what a row is: traces, sessions, users or spans where it has an OTEL Activity profile, otherwise events.
+      - **Who is in a cohort**, or a cohort comparison that names no metric → `inspection`. Name the cohorts in `create_report`'s separate `cohorts` argument; `search_published_cohorts` and `define_cohort` find or make them.
    2. `get_report_instructions(kind="<kind>", wsctx)` for that kind's rules and JSON Schema.
    3. `get_analytics_schema(wsctx)` for the exact event and field names.
-   4. `create_report(kind="<kind>", definition=<report JSON>, wsctx)`. An id the user names (a trace, session or user) goes in the definition's filter. A result starting **The report was not run** lists what to fix: resend as it says.
+   4. `create_report(kind="<kind>", definition=<definition>, wsctx)`. An id the user names (a trace, session or user) goes in the definition's filter. A result starting **The report was not run** lists what to fix: resend as it says.
 4. **Route the response.** The result has a `## Created Analysis` block (id, display, reportUrl, status), an `exportUrl` to the full dataset CSV, and a sample: **5 rows** for activity, **20** for an inspection (long values cut at 97 chars). Its row count is marked **capped by the warehouse** when the real total is higher: then it is a floor, never a total. Use the sample and count to summarize directly without spawning the analyst, unless the user's intent is analytical. A report that matched nothing still returns the block, with `totalRows: 0`; a failed run has a status other than SUCCESS and its failure message.
 
    **Top-level decision rule:**
@@ -66,7 +66,7 @@ aggregate analytics and trends, use /kubit-report.
 
    **Kubit-analyst spawn procedure** (analytical intent, export URL):
    1. Check prerequisites via Bash:
-      - Run `command -v uv` and `python3 --version`. If neither `uv` nor `python3` is available, tell the user: "Full-dataset analysis requires uv or Python 3, which are not installed on this system." Then fall back to the lookup-path output (render the inline sample directly). The kubit-analyst sub-agent handles environment setup and pandas installation internally.
+      - Run `command -v uv` and `python3 --version`. If neither `uv` nor `python3` is available, tell the user: "Full-dataset analysis requires uv or Python 3, which are not installed on this system." Then read the rows with `get_report(reportId=<id>, rows=…, wsctx)` instead (see **Rules**). The kubit-analyst sub-agent handles environment setup and pandas installation internally.
    2. Spawn the `kubit-analyst` sub-agent with a prompt containing:
       - **Question:** The user's original question
       - **Export URL:** The export URL from the MCP response text
@@ -76,7 +76,7 @@ aggregate analytics and trends, use /kubit-report.
    3. Relay the analyst's findings as returned: headline + compact table + brief notable findings. Don't expand into prose.
 
    **Cached-dataset spawn** (for step 2 follow-ups that reuse `$CACHE_DIR/current.csv`):
-   1. Check prerequisites via Bash the same way as above (`command -v uv`, `python3 --version`). If neither is available, tell the user so and stop — there's no MCP fallback on this path since we're deliberately skipping the MCP.
+   1. Check prerequisites via Bash the same way as above (`command -v uv`, `python3 --version`). If neither is available, read the rows of that report with `get_report(reportId=<id>, rows=…, wsctx)` instead.
    2. Spawn `kubit-analyst` with:
       - **Question:** The user's follow-up question
       - **Dataset path:** `$CACHE_DIR/current.csv` (already wsctx-scoped)
@@ -95,9 +95,8 @@ aggregate analytics and trends, use /kubit-report.
 {{KUBIT_MCP_AUTH}}
 
 ## Rules
-- Use the `<memory-context>` and `<lumos-instructions>` blocks and the Lumos skills that `init` and `switch` return when writing a definition: workspace instructions, then the current request, then personal instructions, then memory; the current schema wins over all of them. When the user corrects an event, field, metric or cohort, or states a standing preference for Kubit results, save it with `memory(action="update", target="user", operations=[{op: "add", text: "…"}], wsctx)` before finishing; change workspace memory only when they ask for it.
+{{KUBIT_LUMOS_CONTEXT}}
 - For more rows than the sample, a slice, or when neither uv nor Python is installed: `get_report(reportId=<id>, where={"<column>": "<value>"}, columns=["…"], rows={offset: 0, limit: 50}, wsctx)` reads the report's rows directly (limit up to 100; only with `reportId`).
-- When a Kubit result ends with "Lumos context changed since it was loaded", call `switch` once with the same org and workspace to reload it, and use the wsctx it returns from then on. Do not call it again for the same notice.
 - Route by intent, not row count: analytical asks auto-spawn the analyst; lookup asks render the inline sample directly and offer the analyst as a trailing next step.
 - Do not auto-spawn the analyst on lookup-style queries (single- or multi-row). Offer it; let the user decide.
 - For multi-row lookup output, render the compact table from the MCP's inline sample. For multi-row analytical output, lead with the analyst's compact table.
