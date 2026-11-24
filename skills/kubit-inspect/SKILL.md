@@ -1,6 +1,6 @@
 ---
 name: kubit-inspect
-description: Use this skill when the user wants to find or drill into raw Kubit data — traces, sessions, users, or events.
+description: Use this skill when the user wants to find or drill into raw Kubit data — traces, sessions, users, or events, or who is in a cohort.
 ---
 
 # /kubit-inspect
@@ -20,10 +20,11 @@ aggregate analytics and trends, use /kubit-report.
 - The user wants to navigate from one entity into related ones (e.g. "show me the traces for that session" or "what sessions does this user have?")
 - The user wants to filter data by cost, intent, status, or time range for specific users, sessions, traces or events
 - The user wants to drill into a segment of an existing report (from prior conversation or a pasted URL)
+- The user wants to see or find the users, sessions or traces in a cohort
 
 ## Workflow
 
-1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill. On an auth/unauthenticated error from `init`, do not improvise — follow **MCP authentication** below.
+1. **Confirm workspace context.** Call the `init` MCP tool to load the current org/workspace and obtain a WSCTX (workspace context) token if one isn't already available in this conversation. `init` is the only MCP tool that returns workspace context and a wsctx token — do not substitute any other tool (e.g. `help`) for this step. If the user wants to switch org/workspace, redirect to /kubit-connect — workspace and organization selection is owned by that skill. On an auth error or missing Kubit tools, follow **MCP authentication** below.
 2. **Check for a cached dataset (wsctx-scoped).** Compute the cache key from the current MCP WSCTX token so concurrent conversations don't collide:
 
    ```bash
@@ -32,13 +33,20 @@ aggregate analytics and trends, use /kubit-report.
    ```
 
    If `$CACHE_DIR/current.json` exists, read it. If the user's message is a follow-up analysis or narrowing question about that same dataset (e.g. references "those", "the ones", "that set", or asks for a different cut of the data just shown), **skip the MCP call** and spawn `kubit-analyst` with `Dataset path: $CACHE_DIR/current.csv` plus the cached manifest's question and columns as Context. Otherwise proceed to the MCP call below — it will replace this workspace's cached dataset. When unsure whether the question is a follow-up, prefer a fresh fetch.
-3. **Pass the query through.** Send the user's wording directly to `inspect`. Do not pre-parse, resolve, or reshape parameters — the MCP handles entity type, filters, schema, and date range. If the user references a prior report or pastes a report URL, include that context in the query string. If the MCP asks which entity type to query (users, sessions, traces, events), present the options to the user rather than guessing.
-4. **Route the response.** For data-fetching queries the MCP returns a `## Created Analysis` metadata block (id, display, reportUrl, status), an `exportUrl` pointing to the full dataset CSV, an inline **sample of up to 5 rows** (long values ellipsified at 97 chars), and the **total matching row count**. Use the sample + total to summarize directly without spawning the analyst, unless the user's intent is analytical. Special cases (entity-type clarification, zero results, MCP errors) return short text instead of the metadata block.
+3. **Build the rows.** You write the report; Kubit checks and runs it. Every call takes the `wsctx` from step 1.
+   1. Pick the report type (`kind`):
+      - **Rows** (traces, sessions, users, events) → `activity`. The workspace decides what a row is: traces, sessions, users or spans where it has an OTEL Activity profile, otherwise events.
+      - **Users or sessions a cohort narrows or excludes** ("users except those who…") → `activity`, with the cohort filter.
+      - **Who is in a cohort**, or a cohort comparison that names no metric → `inspection`. Name the cohorts in `create_report`'s separate `cohorts` argument; `search_published_cohorts` and `define_cohort` find or make them.
+   2. `get_report_instructions(kind="<kind>", wsctx)` for that kind's rules and JSON Schema.
+   3. `get_analytics_schema(wsctx)` for the exact event and field names.
+   4. `create_report(kind="<kind>", definition=<definition>, wsctx)`. An id the user names (a trace, session or user) goes in the definition's filter. A result starting **The report was not run** lists what to fix: resend as it says.
+4. **Route the response.** The result has a `## Created Analysis` block (id, display, reportUrl, status), an `exportUrl` to the full dataset CSV, and a sample: **5 rows** for activity, **20** for an inspection (long values cut at 97 chars). Its row count is marked **capped by the warehouse** when the real total is higher: then it is a floor, never a total. Use the sample and count to summarize directly without spawning the analyst, unless the user's intent is analytical. A report that matched nothing still returns the block, with `totalRows: 0`; a failed run has a status other than SUCCESS and its failure message.
 
    **Top-level decision rule:**
-   - **MCP returned an exportUrl** → route by intent (see below). Apply the same rule to single- and multi-row results.
-   - **Entity-type clarification** (MCP asks which type to query) → Relay options to user directly.
-   - **Zero results** (text response, no exportUrl) → Surface the message and suggest broadening filters or time range.
+   - **Zero results** (`totalRows: 0`) → Say nothing matched and suggest broadening filters or time range. Do not spawn the analyst on an empty dataset.
+   - **A status other than SUCCESS** → Surface its failure message as-is.
+   - **Rows and an exportUrl** → route by intent (see below). Apply the same rule to single- and multi-row results.
    - **MCP error** (`isError: true`) → Surface the failure as-is. Do not fabricate data.
 
    **Intent routing (exportUrl path):**
@@ -49,21 +57,17 @@ aggregate analytics and trends, use /kubit-report.
    - **Lookup intent → render directly from the inline sample**, then offer the analyst as the trailing next step. Do not spawn unless the user accepts.
 
    **Lookup-path output shape (formatted by this skill, not by the analyst):**
-   - **Headline (1 sentence):** total match count, time window if present, and any free split (e.g. "12 of 47 failed"). Always state "Showing N of TOTAL" when N < TOTAL.
+   - **Headline (1 sentence):** match count, time window if present, and any free split (e.g. "12 of 47 failed"). State "Showing N of TOTAL" when N < TOTAL, or "Showing N of at least TOTAL" when the count is capped by the warehouse.
    - **Body:**
-     - Multi-row: compact markdown table — one row per sample row. Columns chosen by entity type:
-       - Traces: short id, status, cost, latency, intent, timestamp
-       - Sessions: short id, status, cost, latency, trace count, timestamp
-       - Users: short id / email, total cost, total traces, top intent, last seen
-       - Events: short id, type, status, timestamp
-     - Single-row (total = 1): brief conversational prose summary of the key fields from that row — cost, latency, tokens, error info, status, plus one entity-specific column. No table needed. Don't just list fields — explain what they mean for this entity.
+     - Multi-row: compact markdown table — one row per sample row, with columns taken from the sample's own headers (an id, status, cost, latency, intent or timestamp when the sample has them).
+     - Single-row (total = 1): brief conversational prose summary of the key fields from that row, taken from its own columns (cost, latency, tokens, error info or status when the row has them). No table needed. Don't just list fields — explain what they mean for this entity.
    - Do not invent fields beyond what the MCP sample provides; ellipsified values stay ellipsified in the rendered table.
    - **Trailing analyst offer (one line):** tailor to entity type and visible signals — e.g. "Want me to run the analyst for failure clusters / latency tail / cost outliers across all 47? — say yes to dig in."
    - Then proceed to the standard next-step suggestions in step 5.
 
    **Kubit-analyst spawn procedure** (analytical intent, export URL):
    1. Check prerequisites via Bash:
-      - Run `command -v uv` and `python3 --version`. If neither `uv` nor `python3` is available, tell the user: "Full-dataset analysis requires uv or Python 3, which are not installed on this system." Then fall back to the lookup-path output (render the inline sample directly). The kubit-analyst sub-agent handles environment setup and pandas installation internally.
+      - Run `command -v uv` and `python3 --version`. If neither `uv` nor `python3` is available, tell the user: "Full-dataset analysis requires uv or Python 3, which are not installed on this system." Then read the rows with `get_report(reportId=<id>, rows=…, wsctx)` instead (see **Rules**). The kubit-analyst sub-agent handles environment setup and pandas installation internally.
    2. Spawn the `kubit-analyst` sub-agent with a prompt containing:
       - **Question:** The user's original question
       - **Export URL:** The export URL from the MCP response text
@@ -73,7 +77,7 @@ aggregate analytics and trends, use /kubit-report.
    3. Relay the analyst's findings as returned: headline + compact table + brief notable findings. Don't expand into prose.
 
    **Cached-dataset spawn** (for step 2 follow-ups that reuse `$CACHE_DIR/current.csv`):
-   1. Check prerequisites via Bash the same way as above (`command -v uv`, `python3 --version`). If neither is available, tell the user so and stop — there's no MCP fallback on this path since we're deliberately skipping the MCP.
+   1. Check prerequisites via Bash the same way as above (`command -v uv`, `python3 --version`). If neither is available, read the rows of that report with `get_report(reportId=<id>, rows=…, wsctx)` when its id is in this conversation; otherwise tell the user so and stop.
    2. Spawn `kubit-analyst` with:
       - **Question:** The user's follow-up question
       - **Dataset path:** `$CACHE_DIR/current.csv` (already wsctx-scoped)
@@ -92,13 +96,15 @@ aggregate analytics and trends, use /kubit-report.
 {{KUBIT_MCP_AUTH}}
 
 ## Rules
+{{KUBIT_LUMOS_CONTEXT}}
+- For more rows than the sample, or when neither uv nor Python is installed: `get_report(reportId=<id>, rows={offset: 0, limit: 50}, wsctx)` reads the report's rows a page at a time (limit up to 100; only with `reportId`). An Activity report is paged, not filtered: for a slice, build it again with the filter in its definition.
 - Route by intent, not row count: analytical asks auto-spawn the analyst; lookup asks render the inline sample directly and offer the analyst as a trailing next step.
 - Do not auto-spawn the analyst on lookup-style queries (single- or multi-row). Offer it; let the user decide.
 - For multi-row lookup output, render the compact table from the MCP's inline sample. For multi-row analytical output, lead with the analyst's compact table.
 - For single-row and navigation output, use conversational prose with inline numbers, not tables.
-- Always show total match count alongside displayed results ("Showing N of TOTAL" when N < TOTAL).
+- Always show the match count alongside displayed results ("Showing N of TOTAL" when N < TOTAL; "of at least TOTAL" when it is capped by the warehouse — never quote a capped count as a total).
 - Trust the MCP's row selection and ellipsification — don't truncate, pad, or expand sample values client-side.
-- The MCP is stateless — every call must include all necessary identifiers. When the user follows up on a previous result, extract the relevant entity id from the prior response and include it explicitly in the new query.
+- The MCP is stateless — every call must include all necessary identifiers. When the user follows up on a previous result, take the relevant entity id from the prior response and put it in the new definition's filter.
 - When inspected traces contain failures, errors, or unexpected behavior, suggest `/kubit-blame` as a next step — but never invoke it automatically.
 
 ## Error Handling
@@ -106,27 +112,26 @@ aggregate analytics and trends, use /kubit-report.
 - No results (MCP returns zero rows) → Tell the user nothing matched and suggest broadening the time range or checking filter values. Use your own wording.
 - Execution failure (MCP returns isError: true) → Surface the failure message from the MCP. Don't invent details about what went wrong.
 - No export URL (MCP succeeded but response has no CSV link) → If the user asked for analytical work, tell them this query type doesn't support CSV export. Present the inline sample directly instead.
-- MCP unreachable → Tell the user the connection to the MCP failed and suggest checking their network.
-- Entity type ambiguous (MCP asks for clarification) → Present the options (users, sessions, traces, events) to the user. Don't guess.
+- MCP unreachable (not an auth error) → Tell the user the connection to the MCP failed and suggest checking their network. An auth error, or Kubit tools that are not available, goes to **MCP authentication**.
+- Kubit's result offers choices → relay them to the user rather than guessing.
 
 ## Examples
 
 **Inspect a user (lookup, single-row):**
 Input: /kubit-inspect user alex@acme.com
-Output: Conversational prose summary built from the inline sample row — cost, latency, tokens,
-        top errors, session count, top intent. Trailing analyst offer, then offer to drill
-        into sessions or traces.
+Output: Conversational prose summary built from the sample row's own columns. Trailing
+        analyst offer, then offer to drill into sessions or traces.
 
 **Navigate from user into sessions (lookup, multi-row):**
 Input: show me sessions for alex@acme.com
 Output: One-line headline (count, time window, failure split, "Showing 5 of N"), compact
-        table of the sample sessions (id, status, cost, latency, timestamp), trailing analyst
+        table of the sample sessions with the sample's own columns, trailing analyst
         offer, then drill-into-traces suggestion.
 
 **Failed traces with filters (lookup, multi-row):**
 Input: /kubit-inspect failed traces with intent Checkout since yesterday
-Output: Headline with total count and time window, compact table of the sample traces
-        (id, status, cost, latency, intent, timestamp). Trailing offer to run the analyst
+Output: Headline with the count and time window, compact table of the sample rows with
+        the sample's own columns. Trailing offer to run the analyst
         for failure clusters; then drill-into-trace suggestion and /kubit-blame hint.
 
 **Analytical query (auto-spawn analyst):**

@@ -15,15 +15,14 @@ Two distinct things must be in place for Kubit MCP calls to work, and
 this skill only owns the second:
 
 1. **MCP authentication** — a one-time browser OAuth sign-in against
-   the Kubit Agent MCP server. Driven by Claude Code's built-in
-   `/mcp` command (or, in environments without it, by opening an auth
-   URL the MCP surfaces). Until this completes, every Kubit MCP call
-   — including `init` — fails with an auth error. See *Pre-flight:
+   the Kubit Agent MCP server, through Claude Code's `authenticate` tool
+   for the Kubit server (with `/mcp` as the fallback). Until this completes,
+   the Kubit tools are not available, or fail with an auth error. See *Pre-flight:
    MCP authentication* below.
 2. **Workspace context (`wsctx`)** — the `WSCTX` value returned by
    `init` and `switch`. Pass it on every subsequent Kubit MCP call. It
    is **not** an auth token; it only pins which org/workspace the
-   calls operate against. If lost, just call `init` or `switch` again.
+   calls operate against. If lost, call `switch` with the known org and workspace; call `init` only when none is known.
 
 ## When to Use
 
@@ -67,22 +66,25 @@ Always continue regardless — this notice is informational only.
 
 Run on every entry to this skill, after the update check.
 
-Attempt the `init` MCP tool. If it succeeds, MCP auth is already
-established — capture the response and continue with the rest of the
-flow (Example 1 or 2; for `switch`, you may instead call `switch`
-directly and treat its auth error the same way).
+Attempt the `init` MCP tool; if the Kubit tools are not available,
+sign in first as below. If it succeeds, MCP auth is already established —
+capture the response and continue with the rest of the flow (Example 1
+or 2; for `switch`, you may instead call `switch` directly and treat its
+auth error the same way).
 
 {{KUBIT_MCP_AUTH}}
 
 ## Rules
+{{KUBIT_LUMOS_CONTEXT}}
+- When a Kubit call fails and stops the flow after a wsctx exists (not an auth error), {{KUBIT_BUG_TICKET}} When `init` itself fails there is no wsctx for `help`: show the error and suggest `/kubit-help` once Kubit answers again.
 
 - Skip organization and workspace prompts if the user has only one of each
-- Do not proceed to other skills if MCP authentication is not established — open the surfaced auth URL for the user (falling back to `/mcp` on Claude Code or the Cursor inline prompt when no URL surfaces) per *Pre-flight: MCP authentication*.
+- Do not proceed to other skills if MCP authentication is not established — sign in with Claude Code's `authenticate` tool for the Kubit server (falling back to `/mcp` on Claude Code, or Cursor Settings → MCP) per *Pre-flight: MCP authentication*.
 - Do not proceed to other skills if you don't have a `WSCTX` obtained from `init` or `switch` — call one of them first.
-- Do not persistently store the wsctx, keep it in context window and if it is lost - you can always request a new one using `init` or `switch`
+- Do not persistently store the wsctx, keep it in context window and if it is lost - request a new one with `switch` for the workspace already in use (or `init` when none is known): `init` may land on a different workspace, since it reads preferences shared across clients.
 - Refresh wsctx after 1 hour idle (not a security timeout — just re-pins the workspace)
 - orgId and workspaceId must always be passed as a pair to `switch`
-- Workspaces carrying the `[example: read-only, cannot mint api key]` tag in the `init` response are demo-only — surface the tag verbatim when listing them. If the user wants to instrument an app against one, route them to `/kubit-integrate` to switch to or create a real workspace.
+- Workspaces carrying the `[example: read-only, cannot mint api key]` or `[modeled: read-only, no ingestion / api key]` tag in the `init` response cannot take an app's traces — surface the tag verbatim when listing them. If the user wants to instrument an app against one, route them to `/kubit-integrate` to switch to or create a real workspace.
 - Organizations in the `init` response may carry a `[created by: <name>]` annotation. Surface it verbatim alongside the org name (both for the current org and when listing other orgs) so the user can tell apart orgs they own from orgs created by colleagues.
 
 ## Examples

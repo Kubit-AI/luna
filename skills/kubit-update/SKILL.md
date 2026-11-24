@@ -104,7 +104,7 @@ Present to the user, formatted clearly:
 - **Clean-install warning** — list the exact paths that will be wiped and
   re-extracted:
   - `$CONFIG_DIR/skills/kubit-<each-shipped-skill>/` (one line per shipped skill)
-  - `$CONFIG_DIR/agents/kubit-analyst.md`
+  - `$CONFIG_DIR/agents/kubit-analyst.md`, `kubit-blame-mapper.md`, `kubit-blame-correlator.md`
   - `$CONFIG_DIR/kubit/` (metadata dir)
 - Reassurance: user-added siblings under `$CONFIG_DIR/skills/` are preserved.
   User edits to shipped skills will be overwritten — suggest the user copy

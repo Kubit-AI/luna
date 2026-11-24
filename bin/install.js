@@ -14,37 +14,36 @@ const PKG_ROOT = path.resolve(__dirname, '..');
 const KUBIT_MCP_URL = 'https://agent.kubit.ai/mcp';
 
 // Shared MCP auth-failure handling, inlined via the {{KUBIT_MCP_AUTH}} marker
-// into every skill that calls the `init` tool (connect, inspect, report).
+// into every skill that calls the `init` tool (connect, inspect, report, help).
 // Skills can't read each other's bodies at runtime — the model only has the
 // current SKILL.md in context — so this guidance has to be inlined at install
 // time rather than referenced across files. Single source of truth lives here.
-const KUBIT_MCP_AUTH = `If the call fails with an auth/unauthenticated error:
+const KUBIT_MCP_AUTH = `If the Kubit tools are not available, or a call fails with an auth/unauthenticated error:
 
-- **Primary path (any environment) — the error surfaces an auth URL:**
-  open it for the user immediately with the platform-appropriate
-  command via Bash — \`open <url>\` (macOS), \`xdg-open <url>\` (Linux),
-  or \`start <url>\` (Windows) — and also render the URL as a markdown
-  link with a short display label, e.g.
-  \`[Open the Kubit sign-in page](<url>)\`, so they can click it if the
-  browser doesn't launch. Render it as a labeled link, **not** as a
-  bare URL: these OAuth URLs are long and a raw URL wraps across lines
-  in the terminal, which breaks cmd/ctrl+click. This URL completes the
-  same sign-in loop \`/mcp\` would start, so prefer opening it over
-  routing the user elsewhere. Then ask the user to confirm they
-  completed sign-in before retrying.
-
-  The MCP client itself catches the browser's \`localhost\` callback and
-  stores the token — there is no MCP tool that completes the OAuth
-  code exchange, so **never ask the user to paste the callback /
-  redirect URL (or the \`code\`) back to you**; you cannot finish the
-  flow from it. If the callback page shows a connection error, the
-  client's localhost listener has expired — route the user to \`/mcp\`
-  (Claude Code) to run the managed sign-in, then retry.
-- **No URL surfaces — Claude Code:** ask the user to run \`/mcp\`,
-  complete sign-in for the Kubit MCP server, then re-run the command.
-- **No URL surfaces — Cursor:** Cursor typically prompts the user
-  inline to sign in to the MCP server on first use. Ask the user to
-  confirm that prompt, then re-run the command.
+- **Claude Code — sign in with the server's own tools.** While the
+  Kubit server is signed out, Claude Code offers \`authenticate\` and
+  \`complete_authentication\` for it in place of its other tools:
+  \`mcp__kubit-agent__authenticate\` for a plugin install
+  (\`mcp__<server>__authenticate\` if the server has another name).
+  1. Call \`authenticate\`. Open the URL it returns with the
+     platform-appropriate command via Bash — \`open <url>\` (macOS),
+     \`xdg-open <url>\` (Linux), or \`start <url>\` (Windows) — and always
+     also render it as a labeled markdown link, e.g.
+     \`[Open the Kubit sign-in page](<url>)\`, **not** a bare URL: these
+     OAuth URLs are long and a raw URL wraps across terminal lines,
+     which breaks cmd/ctrl+click. Ask the user to sign in.
+  2. If the browser then shows a failed \`localhost\` callback page (a
+     remote or SSH session), ask the user to paste the full URL from
+     the address bar, and pass it to \`complete_authentication\` as
+     \`callback_url\`. The URL is still valid although the page failed.
+  3. The Kubit tools come back on their own once sign-in completes.
+- **Claude Code, no \`authenticate\` tool** (the server still counts as
+  signed in, e.g. an expired session): ask the user to run \`/mcp\`,
+  choose the Kubit server and re-authenticate — or, over SSH,
+  \`claude mcp login kubit-agent --no-browser\` — then re-run the
+  command.
+- **Cursor:** ask the user to sign in under Cursor Settings → MCP →
+  kubit-agent, then re-run the command.
 
 Do not retry \`init\` in a loop. Surface the instructions and stop; the
 user re-runs the command once sign-in is done.`;
@@ -57,7 +56,7 @@ const SHIPPED_AGENTS = ['kubit-analyst', 'kubit-blame-mapper', 'kubit-blame-corr
 
 // Explicit allowlist of skills that ship. Source folders under `skills/` not
 // listed here stay in the repo but are not installed. Keep this in sync with
-// README.md, skills/help/SKILL.md, CHANGELOG.md, and CLAUDE.md.
+// README.md, skills/kubit-help/SKILL.md, CHANGELOG.md, and CLAUDE.md.
 const SHIPPED_SKILLS = ['kubit-blame', 'kubit-connect', 'kubit-help', 'kubit-inspect', 'kubit-report', 'kubit-update', 'kubit-integrate', 'kubit'];
 
 const HELP = `kubit-agent-plugin — install the Kubit agent plugin into Claude Code and/or Cursor
@@ -234,15 +233,25 @@ function assertSafeConfigDir(configDir) {
   }
 }
 
+// Lumos context rules, inlined via {{KUBIT_LUMOS_CONTEXT}} into every skill that calls Kubit with a wsctx
+// (connect, inspect, report), so each stays in step with orion's memory and context-freshness rules.
+const KUBIT_LUMOS_CONTEXT = `- Use the \`<memory-context>\` and \`<lumos-instructions>\` blocks and the Lumos skills that \`init\` and \`switch\` return in every Kubit call and when writing a definition: workspace instructions, then the current request, then personal instructions, then memory; the current schema wins over all of them. When the user corrects an event, field, metric or cohort, or states a standing preference for Kubit results, save it with \`memory(action="update", target="user", operations=[{op: "add", text: "…"}], wsctx)\` before finishing; change workspace memory only when they ask for it.
+- When a Kubit result ends with "Lumos context changed since it was loaded", call \`switch\` once with the same org and workspace to reload it, and use the wsctx it returns from then on. Do not call it again for the same notice.`;
+
+// The support-ticket offer after a failed Kubit call, inlined via {{KUBIT_BUG_TICKET}} (connect, integrate).
+const KUBIT_BUG_TICKET = "offer a support ticket: call `help` with `requestType: BUG` and no `draftId` to preview it, ask as the preview says, and file only on the user's yes.";
+
 // Substitute the skill template markers (runtime/config/scope for the update
-// skill, plus the shared MCP-auth block). Safe on skills that don't use them —
+// skill, plus the shared MCP-auth, Lumos-context and support-ticket text). Safe on skills that don't use them —
 // the replace passes are no-ops.
 function substituteKubitMarkers(body, ctx) {
   return body
     .replace(/\{\{KUBIT_RUNTIME\}\}/g, ctx.runtime)
     .replace(/\{\{KUBIT_CONFIG_DIR\}\}/g, ctx.configDir)
     .replace(/\{\{KUBIT_SCOPE\}\}/g, ctx.scope)
-    .replace(/\{\{KUBIT_MCP_AUTH\}\}/g, KUBIT_MCP_AUTH);
+    .replace(/\{\{KUBIT_MCP_AUTH\}\}/g, KUBIT_MCP_AUTH)
+    .replace(/\{\{KUBIT_LUMOS_CONTEXT\}\}/g, KUBIT_LUMOS_CONTEXT)
+    .replace(/\{\{KUBIT_BUG_TICKET\}\}/g, KUBIT_BUG_TICKET);
 }
 
 // Recursively copy a file or directory from src to dest. Markdown files get

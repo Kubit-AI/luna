@@ -34,6 +34,6 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "test": "node test/install-markers.test.js"
+    "test": "node test/install-markers.test.js && node test/skills-contract.test.js"
   }
 }

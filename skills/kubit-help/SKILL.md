@@ -43,26 +43,37 @@ When calling the `help` MCP tool, the `text` argument MUST be formatted as:
 Kubit makes the first line the ticket's subject and the rest its body. Do not
 add `---` lines or say where the request came from: Kubit adds a footer that does.
 
-The context should include any of the following that you
-can determine from the current conversation or by looking at the project
-(e.g. `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, lockfiles):
+Before the preview of a ticket, read the project's manifest (`package.json`,
+`pyproject.toml`, `requirements.txt`, `go.mod`) and its lockfile, if any
+(`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `poetry.lock`, `go.sum`), in the
+working directory. With no manifest there, write "No project open." If the files
+cannot be read, leave the project lines out. The context then includes:
 
 - **Project language and framework** (e.g. "TypeScript / Next.js 14",
   "Python 3.12 / FastAPI").
-- **SDKs and libraries in use, with versions** — especially anything Kubit-
-  adjacent: `kubit-otel`, `@kubit-ai/otel`, observability sinks (Langfuse,
-  Braintrust), and LLM sources (Vercel AI SDK, OpenAI, Anthropic, LangChain,
-  OpenTelemetry GenAI).
+- **Kubit-related libraries, with versions**: `kubit-otel`, `@kubit-ai/otel`,
+  observability sinks (Langfuse, Braintrust), and LLM sources (Vercel AI SDK,
+  OpenAI, Anthropic, LangChain, OpenTelemetry GenAI). Public libraries only:
+  never internal package names, file paths or repository names.
 - **Troubleshooting signals from this conversation** — recent error messages,
-  stack traces, failed MCP calls (tool name + error), and what the user has
+  stack traces cut to the error and its public frames (no internal file paths),
+  failed MCP calls (tool name + error), and what the user has
   already tried.
+- **Reports**: the Kubit report page link of each report the issue is about,
+  copied from the tool results (the `reportUrl` or "Kubit report page" line).
 
 Guidelines:
 - Only include information you actually know. Do not invent versions, names,
   or errors. Omit anything unknown.
+- No secrets, no personal data, and no trace or prompt content: cite the
+  trace or report id instead.
+- If this issue was already filed in this conversation, give its earlier
+  ticket id instead of filing a second one.
+- Pick the type by what happened: BUG for a Kubit error, FEEDBACK for a
+  missing capability, QUESTION for a Kubit question the docs do not answer,
+  or when the user asks for the Kubit team.
 - Tailor depth to `requestType`: BUG and QUESTION should include reproduction
-  details and any errors; FEEDBACK usually only needs a brief environment
-  summary.
+  details and any errors; FEEDBACK needs only the language and framework.
 - Keep the context concise — a short labeled list is better than a wall of
   prose.
 
@@ -70,7 +81,9 @@ Guidelines:
 
 Call `help` without `draftId` first: it files nothing and returns the exact
 ticket. Show that ticket as the result says, kept separate from your own text, and
-ask in one `AskUserQuestion`: "Yes, send it", "Edit it first" or "No". On
+ask in one `AskUserQuestion`: "Yes, send it", "Edit it first" or "No". Put the
+exact ticket as the `preview` of every option, since only the highlighted option's
+preview is shown; where previews are not shown, print the ticket above the question. On
 "Yes, send it", call `help` again with the same arguments and the `draftId`.
 On "Edit it first", ask what to change and preview the new text. Where
 `AskUserQuestion` is not available, ask the same question in plain text and
@@ -118,14 +131,15 @@ traces to code and ranks recent commits.
 ### /kubit-inspect
 Retrieves raw data from Kubit — traces, sessions, users, and events. The go-to
 skill for debugging failures, investigating unexpected behavior, or drilling into
-a specific segment of data. Returns up to 5 results by default.
+a specific segment of data, or who is in a cohort. Shows a sample of the
+matching rows and the full set as a CSV.
     /kubit-inspect failed traces with intent Checkout since yesterday
     /kubit-inspect sessions where token cost > $5 in the last 2 hours
     /kubit-inspect users who rephrased more than 2 times last week
 ---
 ### /kubit-report
-Finds, opens, and creates Kubit analytics reports — Grids, Queries,
-Funnels, Flows, and Retention reports. Use this for trends, aggregations, and
+Finds, opens, creates, and changes Kubit analytics reports — queries, data
+tables, funnels, paths, retention, significance tests, and agent flows. Use this for trends, aggregations, and
 LLM performance analysis. Searches existing reports before creating new ones.
     /kubit-report daily failed traces
     /kubit-report build a funnel for prompt → intent → tool call → response
@@ -139,12 +153,26 @@ since the installed version, and runs the installer after confirmation.
 
 ---
 
+### Also available through the Kubit MCP server
+No skill needed: ask for these in your own words.
+- `import_dashboard` — build a Kubit dashboard from reports you made.
+- `publish_component` — publish a filter, measure, virtual event, binning or
+  cohort for your workspace. Permanent; only when you ask for it.
+- `explain_field` — what a field means, or which field holds a value.
+- `memory` — what Kubit remembers about you and your workspace (Lumos memory).
+- `skill` — find, run, create or edit your Lumos skills. They also appear as
+  MCP prompts.
+- `investigate_agent_flow_failure` / `inspect_agent_flow_activity` — why
+  agent traces fail at a node of an agent flow, and those traces in Activity.
+
+---
+
 ## Rules
 
 - Don't require a workspace context — this skill must work before /kubit-connect is complete.
   However, the `help` mcp call does require a wsctx - call `init` first if you don't already have a wsctx in
-  the context and `help` needs to be called. If that `init` (or the `help` call) returns an
-  auth/unauthenticated error, do not improvise — follow **MCP authentication** below. The skill
+  the context and `help` needs to be called. On an auth error or missing Kubit tools, follow
+  **MCP authentication** below. The skill
   list above never needs auth; the `help` and `search_docs` MCP calls do. `search_docs` takes no
   wsctx, so it needs no `init` first, and an auth error from it goes to **MCP authentication** too.
 - When calling `help`, always format `text` as a summary line under 80
